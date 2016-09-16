@@ -1,0 +1,66 @@
+---
+title: "Ch 2 Applied 8"
+author: "Elijah Verdoorn"
+date: "September 8, 2016"
+output: pdf_document
+---
+
+# Part A
+
+
+```{r}
+College <- read.csv("C:/Users/Elijah/OneDrive/Homework/MATH 384/Ch 2/College.csv", header=TRUE)
+View(College)
+```
+Getting the data from my computer
+
+# Part B
+
+```{r}
+rownames(College) = College[,1]
+College = College[,-1]
+fix(College)
+```
+Viewing and setting up the data
+
+# Part C
+
+## i
+```{r}
+summary(College)
+```
+Getting the summary 
+
+## ii
+```{r}
+pairs(College[,1:10])
+```
+The scatterplot matrix
+
+## iii
+```{r}
+plot(College$Private, College$Outstate)
+```
+Boxplots
+
+## iv
+```{r}
+Elite=rep("No",nrow(College))
+Elite[College$Top10perc >50]=" Yes"
+Elite=as.factor(Elite)
+college=data.frame(College ,Elite)
+summary(Elite)
+plot(Elite, College$Outstate)
+```
+
+Finding out if the college is "Elite" by looking at if over half of the college's students were in the top 10% of their high school class.
+
+## v
+```{r}
+par(mfrow=c(2,2))
+hist(College$Apps)
+hist(College$Accept)
+hist(College$Enroll)
+hist(College$Outstate)
+```
+Histograms
