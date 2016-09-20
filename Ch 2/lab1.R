@@ -1,5 +1,9 @@
 library(ggplot2)
 library(dplyr)
+library(tidyr)
+
+# function to rotate the matricies so that they are easier to work with
+rotate <- function(x) t(apply(x, 2, rev))
 
 recordData <- function(i, polyDegree, mse, bias, varience, eps) {
   mseVals[i, polyDegree] <<- mse
@@ -34,7 +38,7 @@ runExperiment <- function(iteration, polyDegree) {
 
 # Setup
 x0 <- .5 # the x0
-numDegrees <- 15
+numDegrees <- 20
 numIterations <- 100
 trueFunction <- function(x) {
   sin(x * pi) # whatever we want to plot
@@ -56,3 +60,7 @@ for (i in 1:numIterations) {
   }
 }
 
+biasVals <- rotate(biasVals)
+
+mv.df <- data.frame(deg = 1:numDegrees, bias = mean(biasVals))
+ggplot(mv.df, aes(deg, bias)) + geom_point() + geom_line()
