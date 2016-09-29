@@ -1,0 +1,374 @@
+---
+title: "Modeling Concrete Strength"
+author: "Matt Richey"
+date: "September 29, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Introduction
+We look at modeling a data set for concrete strength using both linear regression and KNN.
+
+Load the libraries, including FNN for the knn.reg.
+```{r, message=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(FNN)
+```
+
+Read the data
+```{r}
+concrete.df<-read.csv("concrete.csv")
+```
+```{r}
+names(concrete.df)
+```
+SLUMP, FLOW, and Strength are all potential response variables, only keep Strength.
+
+No is just a row number.
+```{r}
+concrete.df <- concrete.df %>% 
+  select(-SLUMP,-FLOW,-No)
+
+```
+
+
+Take a look at remaining combinations.
+```{r}
+pairs(concrete.df)
+```
+
+There appears to be a potential for a relationship between Cement, Slag and Strength.
+
+Quick Plots
+
+
+```{r}
+with(concrete.df,plot(Cement,Strength))
+```
+
+```{r}
+with(concrete.df,plot(Slag,Strength))
+```
+
+Look a little closer at Slag. There are a lot of zero values.
+```{r}
+with(concrete.df,hist(Slag,breaks=25))
+```
+
+Create a qualitative predictor from Slag
+```{r}
+concrete.df<-mutate(concrete.df,LowSlag=Slag==0)
+```
+
+
+
+## Model Strength with Concrete and LowSlag/Slag
+ Look at the combination of the quantitative and 
+qualitative predictors
+```{r}
+ggplot(concrete.df,aes(Cement,Strength,color=LowSlag))+
+  geom_point()
+
+```
+
+
+A basic linear model with two predictors
+
+```{r}
+mod1<-lm(Strength~Cement+LowSlag,data=concrete.df)
+```
+
+
+
+The model summary
+
+```{r}
+summary(mod1)
+```
+How do we read this??
+
+* Increasing Cement increases the Strength
+* LowSlag==TRUE also appears to increase the strength
+* Both these predictors are statistically significant
+
+Now make predictions on the training set
+
+```{r}
+pred<-predict(mod1)
+concrete.df$pred<-pred
+
+```
+
+The visual inspection of predictions
+
+```{r}
+ggplot(concrete.df,aes(Cement,Strength,color=LowSlag))+
+  geom_point()+
+  geom_line(aes(Cement,pred))+
+  ggtitle("Concrete: Linear Model")
+
+```
+
+
+Now add an interaction between Concrete and LowSlag
+```{r}
+mod2<-lm(Strength~Cement+LowSlag+Cement:LowSlag,data=concrete.df)
+summary(mod2)
+```
+
+The Cement:LowSlagTRUE coefficient is positive (but not significant). This is saying there is very weak evidence that in the presence of LowSlag, that the Cement effect is even stronger.
+
+
+
+Plot this
+
+```{r}
+concrete.df$pred<-predict(mod2)
+ggplot(concrete.df,aes(Cement,Strength,color=LowSlag))+
+  geom_point()+
+  geom_line(aes(Cement,pred))  
+
+```
+
+Using geom_smooth(method=lm) gives the same graph.
+```{r}
+ggplot(concrete.df,aes(Cement,Strength,color=LowSlag))+
+  geom_point()+
+  geom_smooth(method=lm,se=F)
+
+```
+
+
+# Prediction
+
+Let's focus on just Cement
+```{r}
+mod0<-lm(Strength~Cement,data=concrete.df)
+concrete.df$pred<-predict(mod0)
+summary(mod0)
+
+
+
+```
+
+The plot
+```{r}
+ggplot(concrete.df,aes(Cement,Strength))+
+  geom_point()+
+  geom_line(aes(Cement,pred))  
+
+```
+
+
+Let's do some a "Feature expansion" : add quadratic term in Cement.
+
+
+```{r}
+mod2<-lm(Strength~Cement+I(Cement^2),data=concrete.df)
+concrete.df$pred<-predict(mod2)
+
+```
+
+
+And the plot...
+```{r}
+ggplot(concrete.df,aes(Cement,Strength))+
+  geom_point()+
+  geom_line(aes(Cement,pred))  
+```
+
+
+This is same adding a new predictor equal to Cement^2
+```{r}
+concrete.df<-concrete.df %>% 
+  mutate(Cement2=Cement^2)
+mod2x<-lm(Strength~Cement+Cement2,data=concrete.df)
+
+```
+
+The summaries are evidence that they are the same.
+
+```{r}
+summary(mod2x)
+summary(mod2)
+
+```
+
+
+
+
+More feature expansion: cubic term
+
+```{r}
+mod3<-lm(Strength~Cement+I(Cement^2)+I(Cement^3),data=concrete.df)
+summary(mod3)
+concrete.df$pred<-predict(mod3)
+```
+The plot of the cubic fit.
+```{r}
+ggplot(concrete.df,aes(Cement,Strength))+
+  geom_point()+
+  geom_line(aes(Cement,pred))  
+```
+
+
+More feature expansion: cubic term: quartic term
+```{r}
+mod4<-lm(Strength~Cement+I(Cement^2)+I(Cement^3)+I(Cement^4),
+         data=concrete.df)
+summary(mod4)
+```
+
+
+
+Notice that none of the terms are significant now
+
+```{r}
+concrete.df$pred<-predict(mod4)
+ggplot(concrete.df,aes(Cement,Strength))+
+  geom_point()+
+  geom_line(aes(Cement,pred))  
+```
+
+
+
+
+
+More feature expansion: Add *any number of powers of
+Cement
+
+To do so, 
+Create formula string of the form
+  "Strength~Cement+I(Cement^2)+I(Cement^3)+I(Cement^4)""
+Here's how to do it.
+
+Fix the degree
+```{r}
+maxDeg<-4
+```
+Begin with a starter string and iteratively add more terms.
+```{r}
+formStr<-"Strength~Cement" #starter string
+for(d in 2:maxDeg){
+  formStr<-sprintf("%s+I(Cement^%s)",formStr,d)
+}
+formStr
+```
+
+
+
+Convert string to formula using function
+**formula**
+```{r}
+modMax<-lm(formula(formStr),
+         data=concrete.df)
+summary(modMax)
+
+```
+
+Now we can easily  model using any degree we want.
+
+```{r}
+concrete.df$pred.lm<-predict(modMax)
+ggplot(concrete.df,aes(Cement,Strength))+
+  geom_point()+
+  geom_line(aes(Cement,pred.lm))  
+
+```
+
+
+
+Natural question:
+ * Which degree is best? Use a train/test  approach to find optimal value. 
+
+
+
+## Nearest Neighbors:  KNN for regression
+
+Use library(FNN)
+and check out
+?knn.reg
+
+
+For knn.reg, need to use matrices again. 
+
+Here we go bulding matrices of the proper dimensions from a data frame
+
+The data
+```{r}
+cement<-with(concrete.df,Cement)
+resp<-with(concrete.df,Strength)
+
+```
+The dimensions
+```{r}
+dim(cement)<-c(nrow(concrete.df),1)
+dim(resp)<-c(nrow(concrete.df),1)
+
+```
+
+Set the number of neighbors
+```{r}
+kval<-10
+```
+
+
+Use original data as test data, for comparison to  linear regression approach
+```{r}
+mod.knn<-knn.reg(cement,NULL,resp,k=kval)
+```
+Here are the predictions
+```{r}
+concrete.df$pred.knn<-mod.knn$pred
+```
+
+
+And a plot...
+```{r}
+ggplot(data=concrete.df)+
+  geom_point(aes(Cement,Strength))+
+  geom_step(aes(Cement,pred.knn),color="red")+
+  geom_line(aes(Cement,pred.lm),color="blue")+
+  ggtitle(sprintf("KNN with k = %s, Linear model with degree=%s",kval,maxDeg))
+
+```
+
+Build KNN.reg on an arbitrary test data set. Here I'll use equally spaced values over the range of the Cement values.
+```{r}
+nn<-75
+rr<-with(concrete.df,range(Cement))
+test<-seq(rr[1],rr[2],len=nn)
+dim(test)<-c(nn,1)
+```
+
+Now use knn.reg with the test data set.
+```{r}
+mod.knn<-knn.reg(cement,test,resp,k=kval)
+```
+
+Here's a way to combine the train and test data in a single plot.
+```{r}
+ggplot()+
+  geom_point(data=concrete.df,aes(Cement,Strength))+
+  geom_step(data=NULL,aes(x=test,y=mod.knn$pred),color="red")
+```
+
+# Assignment
+ Comparison of Linear Models and KNN as a predictor of Concrete 
+ Strength.
+ 
+* Stage 1: Single predictor: Cement --> Strength
+  Which one is better...knn (kval=?) or lm (maxDeg=?)
+* Stage 2: Two predictors: Cement+Slag (continuous) --> Strength
+ Same question
+* Stage 3: Add an additional quantitative predictor. Does this improve  the prediction power of either method? 
+
+
+For your analysis, use multiple random train+test combinations to
+ evaluate your MSE. Each time, use half the data used to train, the other half used to test.
+
+

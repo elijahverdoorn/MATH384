@@ -1,0 +1,199 @@
+---
+title: "Recreating Figure 3.20"
+author: "Matt Richey"
+date: "9/29/16"
+output: html_document
+---
+
+```{r,message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(FNN)
+```
+#Introduction
+The goal is to illustrate the discussion in ISLR at the end of Chapter 3. The authors note that linear models are not nearly as susceptible to noisy data as are KNN models. To demostrate this effect, they construct a simple model y~x and than add additional "noisy" variables. As the number of noisy variables increases, the effectiveness of KNN decreases.
+
+Create training and testing data
+```{r}
+N<-50
+sd<-sqrt(1/5)
+f<-function(x)
+  1+x+sin(4*x)
+
+
+vals.train<-matrix(runif(N,0,3),nrow=N)
+resp.train<-f(vals.train)+rnorm(N,0,sd)
+y.model<-f(vals.train)
+train.df<-data.frame(x=vals.train,y=resp.train,y.model)
+
+
+```
+How does our model  look?                   
+```{r}
+ggplot(train.df,aes(x,y))+geom_point()+
+  geom_line(aes(x,y.model),color="blue",size=1)
+                
+```
+Create the test values the same way    
+```{r}
+vals.test<-matrix(runif(N,0,3),nrow=N)
+resp.test<-f(vals.test)+rnorm(N,0,sd)
+
+```
+Practice KNN
+```{r}
+k<-4
+mod.knn<-knn.reg(vals.train,vals.test,resp.train,k)
+pred.knn<-mod.knn$pred
+test.df<-data.frame(x=vals.test,y=resp.test,y.knn=pred.knn)
+```
+Practice linear model
+```{r}
+mod.lm<-lm(y~x,data=train.df)
+pred.lm<-predict(mod.lm,newdata=test.df)
+test.df$y.lm<-pred.lm
+
+```
+How does the KNN look
+```{r}
+ggplot(test.df)+
+  geom_point(aes(x,y),color="black")+
+  geom_step(aes(x,y=y.knn),color="blue")
+
+```
+How does the Linear Regression look
+```{r}
+ggplot(test.df)+
+  geom_point(aes(x,y),color="black")+
+  geom_line(aes(x,y=y.lm),color="blue")
+
+
+```
+Compute MSE
+```{r}
+mse.knn<-with(test.df,mean((y-y.knn)^2))
+mse.lm<-with(test.df,mean((y-y.lm)^2))
+c(mse.knn,mse.lm)
+
+```
+Find the best k.
+
+*NOTE*. The function knn.reg seems to have a quirky bug with k=2.
+```{r}
+K<-30
+mse.vals<-array(numeric(0),K)
+for(k in 1:K){ ##knn.reg doesn't work for k=2!
+  if(k==2){next}
+mod.knn<-knn.reg(vals.train,vals.test,resp.train,k)
+pred.knn<-mod.knn$pred
+test.df<-data.frame(x=vals.test,y=resp.test,y.knn=pred.knn)  
+  mse.vals[k]<-with(test.df,mean((y-pred.knn)^2))
+}
+mse.vals[2]<-mean(mse.vals[1],mse.vals[3])
+```
+A quick plot
+```{r}
+mse.vals
+data.frame(k=1:K,mse=mse.vals)%>%
+  ggplot(aes(k,mse))+geom_point()
+mse.knn<-min(mse.vals)
+mse.knn
+```
+KNN wins this one
+```{r}
+c(mse.knn,mse.lm)
+
+
+```
+#Adding noise Predictor Variables
+
+Let's add some "noisy" data and see how Linear Regression and KNN
+compare in their predictive power.
+
+First define the total number of predictor variables: we will change this to produce
+the plots
+```{r}
+p<-3
+```
+Add p-1 fake predictor variables.
+```{r}
+vals.noise<-matrix(runif(N*(p-1),0,3),nrow=N)
+```
+Form a training set, add fields and build linear model
+```{r}
+vals.train1<-cbind(vals.train,vals.noise)
+
+```
+##Build linear model
+```{r}
+train.df1<-data.frame(vals.train1)
+```
+
+```{r}
+(flds<-paste0("x",1:p))
+```
+
+
+```{r}
+names(train.df1)<-flds
+train.df1$y<-resp.train
+(form1<-paste0("y~",paste(paste0("x",1:p),collapse="+")))
+```
+
+Our model
+```{r}
+mod.lm1<-lm(formula(form1),data=train.df1)
+```
+Note all the non-significant predictors for p>=2
+```{r}
+summary(mod.lm1)
+```
+
+Now build some test data the same way
+```{r}
+vals.noise<-matrix(runif(N*(p-1),0,3),nrow=N)
+vals.test1<-cbind(vals.test,vals.noise)
+test.df1<-data.frame(vals.test1)
+names(test.df1)<-flds
+test.df1$y<-resp.test
+```
+Predict test resp using model built from training data
+```{r}
+pred.lm<-predict(mod.lm1,newdata=test.df1)
+mse.lm1<-with(test.df,mean((y-pred.lm)^2))
+print(mse.lm1)
+```
+##Build KNN Model
+Now use KNN with various values of K to do the same thing.
+We use the training data to predict on the testing data
+
+```{r}
+K<-50
+mse.knn.vals<-array(numeric(0),K)
+for(k in 1:K){
+  if(k==2){next}
+  mod.knn<-knn.reg(vals.train1,vals.test1,resp.train,k)
+  pred<-mod.knn$pred
+  test.df1$pred.knn<-pred
+  mse.knn.vals[k]<-with(test.df1,mean((y-pred.knn)^2))
+}
+mse.knn.vals[2]<-(mse.knn.vals[1]+mse.knn.vals[3])/2
+mse.knn <- min(mse.knn.vals)
+mse.knn
+```
+
+Build nifty plot for this value of p. Notice how we can flip the values of 1:K around. 
+
+```{r}
+data.df <- data.frame(k=1/(K:1),
+                      mse.knn = rev(mse.knn.vals),
+                      mse.lm=mse.lm1)
+ggplot(data.df)+
+  geom_point(aes(k,mse.knn)) +    
+  geom_line(aes(k,mse.knn),linetype="dashed")+
+  geom_hline(yintercept=mse.lm,color="blue",size=2)+
+  ggtitle(sprintf("KNN vs Linear Model\n MSE: p=%s",p))
+
+```
+
+It looks as if for p=`r p` that the MSE of KNN is still a little better. Will this hold up for larger values? Pick other functional forms to start with and see how well KNN handles extraneous noisy variables. 
