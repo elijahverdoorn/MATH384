@@ -156,7 +156,7 @@ c(mse.train4,mse.test4)
 iterations <- 10
 mse <- matrix(nrow = iterations, ncol = 4)
 for (i in 1:iterations) {
-  # Do it for just 2 predictors
+  # test and train 2 predictors
   mod1 <- lm(Revenue~CompPrice, data = train.df)
   train.pred <- predict(mod1)
   train.df <- mutate(train.df, pred1 = train.pred)
@@ -167,7 +167,7 @@ for (i in 1:iterations) {
   mse[i,1] <- with(train.df, mean((Revenue - pred1)^2))
   mse[i,2] <- with(test.df, mean((Revenue - pred1)^2))
   
-  # Do it for 5 predictors
+  # test and train 5 predictors
   mod5 <- lm(Revenue~CompPrice + Price + Advertising + Population + Income, data = train.df)
   train.pred <- predict(mod5)
   train.df <- mutate(train.df, pred5 = train.pred)
@@ -177,7 +177,6 @@ for (i in 1:iterations) {
   
   mse[i,3] <- with(train.df, mean((Revenue - pred5)^2))
   mse[i,4] <- with(test.df, mean((Revenue - pred5)^2))
-  
 }
 
 
