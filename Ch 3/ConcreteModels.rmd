@@ -385,19 +385,20 @@ test.df <- concrete.df[test,]
 
 mse <- matrix(nrow = iterations, ncol = 2) # need 2 cols, one for testing the LM, one for the KNN
 # we can only do it nn / 2 times since that is the number of values in the set and k can't be higher than that
-for (i in 1:iterations) {
+for (i in 2:iterations) {
     # make lm
     formStr <- "Strength~Cement" #starter string
-    for(d in 1:i){
+    for(d in 2:i){
         formStr <- sprintf("%s+I(Cement^%s)", formStr, d) # build the formula of degree i
     }
     linearModel <- lm(formula(formStr), data = train.df) # train the lm
-    # test the lm
-    testResults <- predict(linearModel, newdata = train.df) # test the lm
-    mse[i, 1] <- with(test, tmean((strength - testResults)^2)) # put the MSE in the appropriate row, first column
-    
-    
+    summary(linearModel)
+    test.df
+    # test the lm`
+    testResults <- predict(linearModel, newdata = test.df) # test the lm
+    mse[i, 1] <- with(test.df, mean((Strength - testResults)^2)) # put the MSE in the appropriate row, first column
 }
 
+formStr
 ```
 

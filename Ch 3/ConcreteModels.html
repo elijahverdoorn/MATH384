@@ -465,6 +465,31 @@ dim(test)&lt;-c(nn,1)</code></pre>
 <li>Stage 3: Add an additional quantitative predictor. Does this improve the prediction power of either method?</li>
 </ul>
 <p>For your analysis, use multiple random train+test combinations to evaluate your MSE. Each time, use half the data used to train, the other half used to test.</p>
+<div id="assignment-response" class="section level2">
+<h2>Assignment Response</h2>
+<p>Single Predictor:</p>
+<pre class="r"><code>iterations &lt;- 10
+nn &lt;- nrow(cement)
+test &lt;- sample(1:nn, nn/2, rep = F)
+train &lt;- setdiff(1:nn, test)
+
+train.df &lt;- concrete.df[train,]
+test.df &lt;- concrete.df[test,]
+
+mse &lt;- matrix(nrow = iterations, ncol = 2) # need 2 cols, one for testing the LM, one for the KNN
+# we can only do it nn / 2 times since that is the number of values in the set and k can't be higher than that
+for (i in 1:iterations) {
+    # make lm
+    formStr &lt;- &quot;Strength~Cement&quot; #starter string
+    for(d in 1:i){
+        formStr &lt;- sprintf(&quot;%s+I(Cement^%s)&quot;, formStr, d) # build the formula of degree i
+    }
+    linearModel &lt;- lm(formula(formStr), data = train.df) # train the lm
+    # test the lm
+    #testResults &lt;- predict(linearModel, newdata = train.df) # test the lm
+    #mse[i, 1] &lt;- with(test, tmean((strength - testResults)^2)) # put the MSE in the appropriate row, first column
+}</code></pre>
+</div>
 </div>
 
 
