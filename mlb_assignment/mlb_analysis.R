@@ -9,11 +9,15 @@ trainingData.df <- subset(allData.df, yearID < 2012 & !is.null(Allstar.next) & !
 testingData.df <- subset(allData.df, yearID == 2012 & !is.null(Allstar.next) & !is.null(salary) & !is.null(AB)) # get the testing data
 
 # predict on something with logistic
-
-
+logisticRegrssionModel <- glm(Allstar.next~salary, family = binomial, data = trainingData.df)
+summary(logisticRegrssionModel)
+logisticRegressionProb <- predict(logisticRegrssionModel, data = testingData.df, type = "response")
+allStarThreshold <- .5
+logisticTesting.df <- testingData.df
+logisticTesting.df <- mutate(testingData.df, logisticBinaryPrediction = ifelse(logisticRegressionProb > allStarThreshold, TRUE, FALSE))
 
 # predict on something with knn
-maxNeighbors <- 10
+maxNeighbors <- 100
 features <- "salary"
 knnResults <- matrix(ncol = 2, nrow = maxNeighbors) # some data structures to hold the results of the work
 for (i in 1:maxNeighbors) {
