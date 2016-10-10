@@ -11,10 +11,12 @@ testingData.df <- subset(allData.df, yearID == 2012 & !is.null(Allstar.next) & !
 # predict on something with logistic
 logisticRegrssionModel <- glm(Allstar.next~salary, family = binomial, data = trainingData.df)
 summary(logisticRegrssionModel)
-logisticRegressionProb <- predict(logisticRegrssionModel, data = testingData.df, type = "response")
+logisticRegressionProb <- predict(logisticRegrssionModel, data = testingData.df, type = "response") # why does this give 10104 results, rather than 383? I'm using testing data, right?
 allStarThreshold <- .5
-logisticTesting.df <- testingData.df
-logisticTesting.df <- mutate(testingData.df, logisticBinaryPrediction = ifelse(logisticRegressionProb > allStarThreshold, TRUE, FALSE))
+logisticTesting.df <- trainingData.df
+logisticTesting.df <- mutate(trainingData.df, logisticBinaryPrediction = ifelse(logisticRegressionProb > allStarThreshold, TRUE, FALSE))
+with(logisticTesting.df, table(Allstar.next, logisticBinaryPrediction))
+
 
 # predict on something with knn
 maxNeighbors <- 100
