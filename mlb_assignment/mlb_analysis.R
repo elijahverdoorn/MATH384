@@ -2,6 +2,7 @@ library(ggplot2)
 library(tidyr)
 library(dplyr)
 library(FNN)
+library(MASS) # for LDA
 
 allData.df <- read.csv("MLB_1985_2013.csv") # read all the data
 allData.df <- allData.df[complete.cases(allData.df),]
@@ -11,12 +12,11 @@ testingData.df <- subset(allData.df, yearID == 2012 & !is.null(Allstar.next) & !
 # predict on something with logistic
 logisticRegrssionModel <- glm(Allstar.next~salary, family = binomial, data = trainingData.df)
 summary(logisticRegrssionModel)
-logisticRegressionProb <- predict(logisticRegrssionModel, data = testingData.df, type = "response") # why does this give 10104 results, rather than 383? I'm using testing data, right?
+logisticRegressionProb <- predict(logisticRegrssionModel, data = testingData.df) # why does this give 10104 results, rather than 383? I'm using testing data, right?
 allStarThreshold <- .5
 logisticTesting.df <- trainingData.df
 logisticTesting.df <- mutate(trainingData.df, logisticBinaryPrediction = ifelse(logisticRegressionProb > allStarThreshold, TRUE, FALSE))
 with(logisticTesting.df, table(Allstar.next, logisticBinaryPrediction))
-
 
 # predict on something with knn
 maxNeighbors <- 100
@@ -50,4 +50,17 @@ ggplot(knnResults.df, aes(neighbors, error)) +
     geom_point() + geom_line() + 
     geom_smooth(se = F) +
     ggtitle("Test Error rate by number of neighbors")
+
+# predict on something with LDA
+ldaTesting.df <- testingData.df
+ldaModel <- lda(Allstar.next~salary, data = trainingData.df)
+ldaModel
+summary(ldaModel)
+ldaPredictions <- predict(ldaModel, testingData.df)
+
+preds <- ldaPredictions$class
+ldaTesting.df <- testingData.df %>% 
+  mutate(ldaPredictions = preds)
+
+with(ldaTesting.df, table(Allstar.next, ldaPredictions))
 
