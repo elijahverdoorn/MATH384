@@ -40,14 +40,18 @@ for (i in 1:100) {
     with(test.df, table(class, class.pred))
 
     # Get the true positive numbers
-    truePositives <- sum(test.df$class == "Y" & test.df$class.pred == "Y")
+    truePositives <- sum(test.df$class == "Y")
     falsePositves <- sum(test.df$class == "N" & test.df$class.pred == "Y")
-    trueNegatives <- sum(test.df$class == "N" & test.df$class.pred == "N")
+    trueNegatives <- sum(test.df$class == "N")
     falseNegatives <- sum(test.df$class == "Y" & test.df$class.pred == "N")
 
     # Get the rates
-    truePositiveRate <- sum(test.df$class.pred == "Y") / sum(test.df$class == "Y")
-    falsePositveRate <- sum(test.df$class.pred == "Y") / sum(test.df$class == "N")
+    tpRate <- sum(test.df$class == "Y" & test.df$class.pred == "Y") / truePositives
+    fpRate <- sum(test.df$class == "N" & test.df$class.pred == "Y") / trueNegatives
 
-    ratesMatrix[i,] = c(yes.thresh, truePositiveRate, falsePositveRate)
+    ratesMatrix[i,] = c(yes.thresh, tpRate, fpRate)
 }
+
+rates.df <- data.frame(ratesMatrix)
+colnames(rates.df) <- c("p", "truePositiveRate", "falsePositiveRate")
+ggplot(rates.df, aes(falsePositiveRate, truePositiveRate)) + geom_point()
