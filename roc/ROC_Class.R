@@ -1,5 +1,6 @@
 library(ggplot2)
 library(dplyr)
+library(caTools) # for trapz
 
 #######################################################
 N <- 1000
@@ -55,3 +56,9 @@ for (i in 1:100) {
 rates.df <- data.frame(ratesMatrix)
 colnames(rates.df) <- c("p", "truePositiveRate", "falsePositiveRate")
 ggplot(rates.df, aes(falsePositiveRate, truePositiveRate)) + geom_point()
+
+# get the area under that curve
+area <- 0
+for(i in 1:100) {
+    area <- area + trapz(rates.df$falsePositiveRate, rates.df$truePositiveRate)
+}

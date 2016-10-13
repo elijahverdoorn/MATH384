@@ -9,7 +9,7 @@ library(class)
 library(FNN)
 
 
-airfoil.df0<-read.csv("/Users/richeym/Dropbox/CLASSES/F15/IntroStatLearn2015/DATA/Airfoil/airfoil_noise.csv",sep='\t')
+airfoil.df0<-read.csv("airfoil_noise.csv",sep='\t')
 summary(airfoil.df0)
 
 airfoil.df<-scale(airfoil.df0)
