@@ -1,23 +1,42 @@
+---
+title: "mlb_analysis"
+author: "Elijah Verdoorn"
+date: "October 16, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
 library(ggplot2)
 library(tidyr)
 library(dplyr)
 library(FNN)
 library(MASS) # for LDA
+```
 
+# Get Data
+
+```{r}
 allData.df <- read.csv("MLB_1985_2013.csv") # read all the data
 allData.df <- allData.df[complete.cases(allData.df),]
 trainingData.df <- subset(allData.df, yearID < 2011 & !is.null(Allstar.next) & !is.null(salary) & !is.null(AB)) # get the training data
 testingData.df <- subset(allData.df, yearID == 2011 & !is.null(Allstar.next) & !is.null(salary) & !is.null(AB)) # get the data to use to test the models
 newData.df <- subset(allData.df, yearID == 2012 & !is.null(Allstar.next) & !is.null(salary) & !is.null(AB)) # get the 2012 testing data
+```
+Grab our data from the CSV. Once we have it, split up the data so that we have easy access to the testing, training, and new 2012 data.
 
-# predict on something with logistic
+# Logistic
+
+```{r}
 logisticRegrssionModel <- glm(Allstar.next ~ salary * AB * H * B2 * B3, family = binomial, data = testingData.df)
 summary(logisticRegrssionModel)
 logisticRegressionProb <- predict(logisticRegrssionModel, data = testingData.df) # why does this give 9728 results, rather than 383? I'm using testing data, right?
 allStarThreshold <- .5
 logisticTesting.df <- testingData.df
 logisticTesting.df <- mutate(testingData.df, logisticBinaryPrediction = ifelse(logisticRegressionProb > allStarThreshold, TRUE, FALSE))
+```
+Start with logisitc regression. I chose to use 5 predictors, mostly randomly since I really don't know anything about baseball.
 
+```{r}
 with(logisticTesting.df, table(Allstar.next, logisticBinaryPrediction))
 truePositives <- sum(logisticTesting.df$Allstar.next == T)
 falsePositves <- sum(logisticTesting.df$Allstar.next == F & logisticTesting.df$logisticBinaryPrediction == T)
@@ -26,8 +45,11 @@ falseNegatives <- sum(logisticTesting.df$Allstar.next == T & logisticTesting.df$
 correctPositives <- sum(logisticTesting.df$Allstar.next == T & logisticTesting.df$logisticBinaryPrediction == T)
 
 totalValueLogistic <- (falseNegatives * 20) + (falsePositves * 50) - (correctPositives * 10)
+```
+This block will appear often. I took the data and threw it in a table, then looked at the results next to the scoring matrix given. Recording the score allows me to determine tbe best model later on.
 
-# predict on something with knn
+# KNN
+```{r}
 maxNeighbors <- 150
 features <- "salary"
 knnResults <- matrix(ncol = 2, nrow = maxNeighbors) # some data structures to hold the results of the work
@@ -62,15 +84,21 @@ for (i in 1:maxNeighbors) {
     knnResults[i, 2] <- mean(c(knnPredictions) != testingData.df["Allstar.next"]) # how did we do? calculate the error rate
     knnResults[i, 1] <- i
 }
+```
+This is a big block of code, but it produces all the structure taht we need to do the KNN prediction on a lot of different k values. the values are tested and we keep the one that has the lowest score according to the scoring matrix, storing the best k value in the `bestKVal` variable.
 
+```{r}
 knnResults.df <- data.frame(knnResults)
 colnames(knnResults.df) <- c("neighbors", "error")
 ggplot(knnResults.df, aes(neighbors, error)) + 
     geom_point() + geom_line() + 
     geom_smooth(se = F) +
     ggtitle("Test Error rate by number of neighbors")
+```
+I was curious about what the error rate graphs looked like vs the number of neighbors, so I made this. the graph doesn't look how I expected it to, so I think that I may have done something wrong.
 
-# predict on something with LDA
+# LDA
+```{r}
 ldaTesting.df <- testingData.df
 ldaModel <- lda(Allstar.next~salary * AB * H * B2 * B3, data = trainingData.df)
 ldaModel
@@ -89,8 +117,37 @@ falseNegatives <- sum(ldaTesting.df$Allstar.next == T & ldaTesting.df$ldaPredict
 correctPositives <- sum(ldaTesting.df$Allstar.next == T & ldaTesting.df$ldaPredictions == T)
 
 totalValueLDA <- (falseNegatives * 20) + (falsePositves * 50) - (correctPositives * 10)
+```
+This block is very similar to the logistic block, keeping the error rates and the scores from the scoring matrix for further use.
 
+# Results
+```{r}
 # look and see what wins
 totalValueLDA
 totalValueknn
 totalValueLogistic
+```
+Got the scores from the three types of models, so we can take a look at which one to use.
+
+## Application
+Seeing that logistic regression scored the best, we want to train the logistic model on as much data as possible, including all the data that we used to compare the models
+```{r}
+trainingData.df <- subset(allData.df, yearID < 2012 & !is.null(Allstar.next) & !is.null(salary) & !is.null(AB)) # get the data to use to make the final model
+logisticRegrssionModel <- glm(Allstar.next ~ salary * AB * H * B2 * B3, family = binomial, data = trainingData.df)
+summary(logisticRegrssionModel)
+logisticRegressionProb <- predict(logisticRegrssionModel, newdata = newData.df)
+allStarThreshold <- .5
+logisticTesting.df <- newData.df
+logisticTesting.df <- mutate(newData.df, logisticBinaryPrediction = ifelse(logisticRegressionProb > allStarThreshold, TRUE, FALSE))
+
+with(logisticTesting.df, table(Allstar.next, logisticBinaryPrediction))
+truePositives <- sum(logisticTesting.df$Allstar.next == T)
+falsePositves <- sum(logisticTesting.df$Allstar.next == F & logisticTesting.df$logisticBinaryPrediction == T)
+trueNegatives <- sum(logisticTesting.df$Allstar.next == F)
+falseNegatives <- sum(logisticTesting.df$Allstar.next == T & logisticTesting.df$logisticBinaryPrediction == F)
+correctPositives <- sum(logisticTesting.df$Allstar.next == T & logisticTesting.df$logisticBinaryPrediction == T)
+
+totalValueLogistic <- (falseNegatives * 20) + (falsePositves * 50) - (correctPositives * 10)
+totalValueLogistic
+```
+Not great, but not too bad. Better than the score that caused us to pick the model that we did, so that's good!
