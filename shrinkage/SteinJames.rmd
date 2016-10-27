@@ -1,0 +1,293 @@
+---
+title: "Shrinkage Estimators vis Stein-James"
+author: "Matt Richey"
+date: "October 12, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+1 Introduction to Shrinkage Estimat
+
+Load the libraries
+```{r,message=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+
+```
+
+Data from the classic Efron/Morris paper on Shrinkage Estimators
+Data Analysis Using Stein's Estimator and its Generalizations
+http://www.stat.cmu.edu/~acthomas/724/Efron-Morris.pdf
+
+Baseball players go up to hit (an "At Bat"): sometimes
+they succeed, sometimes they fail.  The
+proportion of successes is called the "batting average". It is a
+estimate of the player's "true" probability of success
+
+The goal here is to predict the true probability of success from
+a limited sample (N=50). The "true" average is not known, but is assumed
+to be pretty much equal the player's batting average at the end of
+the season (N=500 or so).
+
+The original data set from the paper. Eighteen players, each with
+exactly 90 at bats. Players include Roberto Clemente, Frank Robinson, Frank
+Howard, Ron Santo, Bert Campaneris, and Thurman Munson
+```{r}
+bb.df <- read.csv("baseball.txt",sep=" ")
+bb.df
+
+bb.df%>%
+    select(Player,MLE,TRUTH)%>%
+    gather(type,ave,MLE:TRUTH,-Player)%>%
+    ggplot(aes(ave,fill=type))+
+    geom_histogram(color="black",binwidth=.0175)+
+    facet_wrap(~type,ncol=1)
+
+```
+The values MLE are the current batting averages (proportions of
+success) after N=50 at bats (trials). From a strict frequentist
+perspective, the MLE is the "best" estimate of a player's true
+probability of success.
+
+Another strategy is to assume all the players are identical and we
+are just seeing random variation amoung the success rates. Hence,
+the best estimate for each player is just the pooled proportion of
+sucess.
+
+Stein-James says the best individual estimator for each player is a
+compromise between these to estimators.
+
+Get to work
+The number at bats (common to all).
+```{r}
+AB0 <- 90
+```
+
+The key quantities.
+* M is Total number of observations. In this case, 18
+* pbar=pooled average
+* sigma0 =estimated variance of of the pbar.
+* perr=estimated standard error (or so)
+```{r}
+M <- nrow(bb.df)
+(pbar <- with(bb.df,mean(MLE)))
+(sigma0 <- pbar*(1-pbar)/AB0)
+(perr <- with(bb.df,sum( (MLE-pbar)^2)))
+sigma0/perr
+```
+The key quantity the shrinkage factor
+```{r}
+(shrinkJS <- 1-(M-3)*sigma0/perr)
+
+
+
+
+bb.df <- bb.df%>%
+    mutate(JS = pbar+shrinkJS*(MLE-pbar))
+bb.df
+
+```
+
+A picture of the shrinkage
+```{r}
+ggplot(bb.df) +
+    geom_segment(aes(x=MLE,xend=JS,y=0,yend=1))+
+    geom_segment(aes(x=TRUTH,xend=JS,y=2,yend=1))+
+    geom_point(aes(x=MLE,y=0),color="red")+
+    geom_point(aes(x=TRUTH,y=2),color="brown") +
+    geom_point(aes(x=JS,y=1),color="blue")  +
+    scale_y_continuous(limits=c(-0.5,2.5))+
+    ggtitle("MLE (Red), JS (Blue), TRUTH (Brown)")
+
+```
+
+Loss functions: Pooled, MLE, and JS
+```{r}
+lossPOOL <- with(bb.df,sum( (TRUTH-pbar)^2))
+lossMLE <- with(bb.df,sum( (TRUTH-MLE)^2))
+lossJS <- with(bb.df,sum( (TRUTH-JS)^2))
+c(lossPOOL,lossMLE,lossJS)
+
+
+
+
+```
+
+#Repeat all this on Current Data
+
+```{r}
+dir <- "/Users/richeym/Dropbox/WORK/SPORTS/BASEBALL/DATA/CSV_DATA"
+fileName <- "gameDataProcessed_2013.csv"
+file <- sprintf("%s/%s",dir,fileName)
+bbUpdate.df <- read.csv(file)
+names(bbUpdate.df)
+
+
+```
+Events are what happened during an AB
+```{r}
+(events <- with(bbUpdate.df,sort(unique(event))))
+```
+These are the ones that count as ABs
+```{r}
+event.ids <- which(events %in% c("Strikeout","Lineout","Groundout","Flyout",
+                                 "Pop Out","Forceout","Double Play","Strikeout - DP",
+                                 "Bunt Groundout","Bunt Lineout","Bunt Popout",
+                                 "Fielders Choice Out", "Fielders Choice",
+                                 "Single","Double","Triple","Home Run"))
+(abEvents <- droplevels(events[event.ids]))
+
+
+
+```
+
+Filter on these
+
+```{r}
+absUpdate.df <- bbUpdate.df%>%
+    filter(event %in%abEvents)
+
+
+```
+
+Only consider batters with a reasonable number of ABs
+```{r}
+batterTots.df <- absUpdate.df%>%
+    group_by(batterID)%>%
+    summarize(AB=n())%>%
+    filter(AB>375)
+
+```
+
+Get the player IDs and take a random sample for our experiment
+
+```{r}
+playerIDs <- with(batterTots.df,unique(batterID))
+playerIDs <- sample(playerIDs,40,rep=F)
+
+
+```
+
+filter on these players and only keep relevent variables
+```{r}
+absUpdate.df2 <- absUpdate.df%>%
+    filter(batterID %in% playerIDs)%>%
+    arrange(batterID,gid,inning)%>%
+    select(batterID,event)%>%
+    group_by(batterID)
+
+
+```
+
+Now grab all the hits and create a hit indicator
+Then create a running total of abs, hits and average
+```{r}
+hit.ids <- which(events %in% c("Single","Double","Triple","Home Run"))
+(hitEvents <- droplevels(events[hit.ids]))
+
+absUpdate.df2 <- absUpdate.df2%>%
+    mutate(HIT=event %in% hitEvents)%>%
+    mutate(abNum=row_number(),
+           hitNum=cumsum(HIT),
+           aveCurr=hitNum/abNum)
+head(absUpdate.df2)
+```
+
+Filter on AB0 at bats
+```{r}
+absAB0.df <- absUpdate.df2%>%
+    filter(abNum==AB0)%>%
+    select(batterID,aveCurr,hitNum)
+
+```
+
+Filter on last at bats
+```{r}
+absLast.df <- absUpdate.df2%>%
+    group_by(batterID)%>%
+    filter(row_number()==n())%>%
+    select(batterID,aveCurr,abNum,hitNum)
+```
+Rename
+```{r}
+names(absLast.df)[2:4] <- c("aveFinal","abFinal","hitFinal")
+
+```
+
+Join these together...this is the updated version of the original
+data set
+```{r}
+bbUpdate.df <- absAB0.df%>%
+    inner_join(absLast.df)%>%
+    mutate(aveRest=(hitFinal-hitNum)/(abFinal-AB0))%>%
+    ungroup()
+names(bbUpdate.df)[c(1,2,7)] <- c("Player","MLE","TRUTH")
+
+```
+
+A look at the dispersal of averages
+```{r}
+bbUpdate.df%>%
+    select(Player,MLE,TRUTH)%>%
+    gather(type,ave,MLE:TRUTH,-Player)%>%
+    ggplot(aes(ave,fill=type))+
+    geom_histogram(color="black",binwidth=.0175)+
+    facet_wrap(~type,ncol=1)
+
+
+```
+
+Compute these values for the James-Stein Estimator
+```{r}
+(M <- nrow(bbUpdate.df))
+(pbar <- with(bbUpdate.df,mean(MLE)))
+(perr <- with(bbUpdate.df,sum( (MLE-pbar)^2)))
+(sigma0 <- pbar*(1-pbar)/AB0)
+(K <- (M-3)*sigma0/perr)
+(shrinkJS <- 1-K)
+
+
+```
+
+The JS estimator of the TRUE average
+```{r}
+bbUpdate.df <- bbUpdate.df%>%
+    mutate(JS = pbar+shrinkJS*(MLE-pbar))
+
+```
+
+How do the shrinkage estimators look??
+```{r}
+ggplot(bbUpdate.df) +
+    geom_segment(aes(x=MLE,xend=JS,y=0,yend=1))+
+    geom_segment(aes(x=TRUTH,xend=JS,y=2,yend=1))+
+    geom_point(aes(x=MLE,y=0),color="red")+
+    geom_point(aes(x=TRUTH,y=2),color="brown") +
+    geom_point(aes(x=JS,y=1),color="blue")  +
+    scale_y_continuous(limits=c(-0.5,2.5))+
+    ggtitle("MLE (Red), JS (Blue), TRUTH (Brown)")
+
+
+```
+
+Loss functions: Pooled, MLE, and JS
+```{r}
+lossPOOL <- with(bbUpdate.df,sum( (TRUTH-pbar)^2))
+lossMLE <- with(bbUpdate.df,sum( (TRUTH-MLE)^2))
+lossJS <- with(bbUpdate.df,sum( (TRUTH-JS)^2))
+
+```
+
+compare loss functions
+```{r}
+c(lossPOOL,lossMLE,lossJS)
+
+
+
+
+
+```
