@@ -220,11 +220,13 @@ c(mse.lm, mse.ridge)
 ## the error bars.
 #######################################################
 
+mseData <- matrix(ncol = 3, nrow = numLambda)
 for (i in 1:10) {
     lambdaIter <- lambda.grid[i]
     K <- 10 # number of folds
     N <- nrow(train.df) # number of rows in the training set
     folds <- sample(1:K, N, rep = T) # make the folds matrix
+    mse <- matrix(nrow = K, ncol = 1)
     for(k in 1:K) {
         # use the folds matrix on the x and y to make test/train for each
         xTrain.df <- x.train[folds != k,]
@@ -238,9 +240,17 @@ for (i in 1:10) {
         # Make a prediction
         prediction <- predict(mod.ridge, newx = xTest.df)
         # How did we do?
-        mse <- mean((yTest.df - prediction)^2)
+        mse[k] <- mean((yTest.df - prediction)^2)
     }
+    mseData[i, 1] <- lambdaIter
+    mseData[i, 2] <- mean(mse)
+    mseData[i, 3] <- sd(mse)
 }
+
+mseData.df <- as.data.frame(mseData)
+colnames(mseData.df) <- c("lambda", "meanMSE", "sdMSE")
+ggplot(data = mseData.df, aes(x = log(lambda), y = meanMSE)) + geom_point()
+
 
 #######################################################
 ##1  Repeat the analysis using lasso. Now alpha=1
