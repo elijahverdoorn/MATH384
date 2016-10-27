@@ -220,6 +220,27 @@ c(mse.lm, mse.ridge)
 ## the error bars.
 #######################################################
 
+for (i in 1:10) {
+    lambdaIter <- lambda.grid[i]
+    K <- 10 # number of folds
+    N <- nrow(train.df) # number of rows in the training set
+    folds <- sample(1:K, N, rep = T) # make the folds matrix
+    for(k in 1:K) {
+        # use the folds matrix on the x and y to make test/train for each
+        xTrain.df <- x.train[folds != k,]
+        xTest.df <- x.train[folds == k,]
+        yTrain.df <- y.train[folds != k]
+        yTest.df <- y.train[folds == k]
+    
+        # build the model
+        mod.ridge <- glmnet(xTrain.df, yTrain.df, alpha = 0, lambda = i, intercept = TRUE)
+        
+        # Make a prediction
+        prediction <- predict(mod.ridge, newx = xTest.df)
+        # How did we do?
+        mse <- mean((yTest.df - prediction)^2)
+    }
+}
 
 #######################################################
 ##1  Repeat the analysis using lasso. Now alpha=1
