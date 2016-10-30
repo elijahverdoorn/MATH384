@@ -1,7 +1,7 @@
 library(dplyr)
 library(glmnet)
 library(ggplot2)
-
+library(glmnet)
 ###
 # Cost Matrix:
 # False Positive - 5
@@ -25,8 +25,58 @@ names(germanCredit.df) <- c("chk_ac_status_1",
 germanCreditNumeric.df <- germanCreditNumeric.df %>% # add the response variable to the numeric data
     mutate(response = germanCredit.df[,21])
 
+# get the data into the form that we want it in
+
+# there's almost certainly a better way to do this, but for now this'll work
+numericTest.df <- germanCreditNumeric.df[1:50,] 
+numericTrain.df <- germanCreditNumeric.df[51:1000,]
+
+numericTest.mat <- data.matrix(numericTest.df)
+numericTrain.mat <- data.matrix(numericTrain.df)
+
 # Lasso
 # TODO: use lasso to select variables, then feed those variables to LDA and logistic regression
+
+# build the matrices of variables in the format that glmnet wants
+xNumericTrain.mat <- data.matrix(numericTrain.df[,1:49])
+yNumericTrain.mat <- data.matrix(numericTrain.df[,50])
+xNumericTest.mat <- data.matrix(numericTest.df[,1:49])
+yNumericTest.mat <- data.matrix(numericTest.df[,50])
+
+# want a "grid" of lambda vals so that we can pick an ideal lambda
+numLambda <- 100
+expVals <- seq(-4, 4, length = numLambda)
+lambdaGrid <- 10^expVals
+plot(expVals, lambdaGrid) # make sure that it looks exponential
+
+lassoModel <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambdaGrid, intercept = TRUE) # use the lambdas that we just made to find the ideal value
+coef(lassoModel) # look at the coefficients of the model
+plot(lassoModel) # see what the model looks like
+
+# get the optimal lambda
+crossValidatedLassoModel <- cv.glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambda.grid, intercept = TRUE) # cross validate
+
+(lambda0 <- crossValidatedLassoModel$lambda.min)
+(lambda1 <- crossValidatedLassoModel$lambda.1se)
+mod.lasso <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambda0, intercept = TRUE) # use the optimal lambda
+
+lasso.gg + 
+  geom_vline(xintercept = log(lambda0, 10), size = .5, linetype = "dashed") +
+  geom_vline(xintercept = log(lambda1, 10), size = .5, linetype = "dashed")
+
+mod.lassoConservative <- glmnet(x.train, y.train, alpha = 1, lambda = lamb1, intercept = TRUE) # a more conservative estimate, for comparison
+
+coef.lasso <- coef(mod.lasso)
+coef.lassoConservative <- coef(mod.lassoConservative)
+
+## And finally, the mse
+pred.lasso <- predict(mod.lasso, newx = xNumericTest.mat)
+#pred.lassoConservative <- predict(mod.lassoConservative, newx = xNumericTest.mat)
+mse.lasso <- with(numericTest.df, mean((pred.lasso - yNumericTest.mat)^2))
+#mse.lassoConservative <- with(numericTest.df, mean((pred.lassoConservative - yNumericTest.mat)^2))
+
+## Comparison of errors
+c(mse.lasso,mse.lassoConservative)
 
 # Linear Discrim. Analysis
 
