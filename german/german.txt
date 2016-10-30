@@ -5,8 +5,8 @@ Description of the German credit dataset.
 2. Source Information
 
 Professor Dr. Hans Hofmann
-Institut f"ur Statistik und "Okonometrie
-Universit"at Hamburg
+Institut fur Statistik und Okonometrie
+Universitat Hamburg
 FB Wirtschaftswissenschaften
 Von-Melle-Park 5
 2000 Hamburg 13
