@@ -54,17 +54,13 @@ coef(lassoModel) # look at the coefficients of the model
 plot(lassoModel) # see what the model looks like
 
 # get the optimal lambda
-crossValidatedLassoModel <- cv.glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambda.grid, intercept = TRUE) # cross validate
+crossValidatedLassoModel <- cv.glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambdaGrid, intercept = TRUE) # cross validate
 
 (lambda0 <- crossValidatedLassoModel$lambda.min)
 (lambda1 <- crossValidatedLassoModel$lambda.1se)
 mod.lasso <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambda0, intercept = TRUE) # use the optimal lambda
 
-lasso.gg + 
-  geom_vline(xintercept = log(lambda0, 10), size = .5, linetype = "dashed") +
-  geom_vline(xintercept = log(lambda1, 10), size = .5, linetype = "dashed")
-
-mod.lassoConservative <- glmnet(x.train, y.train, alpha = 1, lambda = lamb1, intercept = TRUE) # a more conservative estimate, for comparison
+mod.lassoConservative <- glmnet(x.train, y.train, alpha = 1, lambda = lambda1, intercept = TRUE) # a more conservative estimate, for comparison
 
 coef.lasso <- coef(mod.lasso)
 coef.lassoConservative <- coef(mod.lassoConservative)
@@ -76,10 +72,46 @@ mse.lasso <- with(numericTest.df, mean((pred.lasso - yNumericTest.mat)^2))
 #mse.lassoConservative <- with(numericTest.df, mean((pred.lassoConservative - yNumericTest.mat)^2))
 
 ## Comparison of errors
-c(mse.lasso,mse.lassoConservative)
-
-# Linear Discrim. Analysis
+#c(mse.lasso,mse.lassoConservative)
 
 # Ridge Regression
+# build the matrices of variables in the format that glmnet wants
+xNumericTrain.mat <- data.matrix(numericTrain.df[,1:49])
+yNumericTrain.mat <- data.matrix(numericTrain.df[,50])
+xNumericTest.mat <- data.matrix(numericTest.df[,1:49])
+yNumericTest.mat <- data.matrix(numericTest.df[,50])
+
+# want a "grid" of lambda vals so that we can pick an ideal lambda
+numLambda <- 100
+expVals <- seq(-4, 4, length = numLambda)
+lambdaGrid <- 10^expVals
+plot(expVals, lambdaGrid) # make sure that it looks exponential
+
+ridgeModel <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambdaGrid, intercept = TRUE) # use the lambdas that we just made to find the ideal value
+coef(ridgeModel) # look at the coefficients of the model
+plot(ridgeModel) # see what the model looks like
+
+# get the optimal lambda
+crossValidatedRidgeModel <- cv.glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambdaGrid, intercept = TRUE) # cross validate
+
+(lambda0 <- crossValidatedRidgeModel$lambda.min)
+(lambda1 <- crossValidatedRidgeModel$lambda.1se)
+mod.ridge <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambda0, intercept = TRUE) # use the optimal lambda
+
+mod.ridgeConservative <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambda1, intercept = TRUE) # a more conservative estimate, for comparison
+
+coef.ridge <- coef(mod.ridge)
+coef.ridgeConservative <- coef(mod.ridgeConservative)
+
+## And finally, the mse
+pred.ridge <- predict(mod.ridge, newx = xNumericTest.mat)
+#pred.lassoConservative <- predict(mod.lassoConservative, newx = xNumericTest.mat)
+mse.ridge <- with(numericTest.df, mean((pred.ridge - yNumericTest.mat)^2))
+#mse.lassoConservative <- with(numericTest.df, mean((pred.lassoConservative - yNumericTest.mat)^2))
+
+## Comparison of errors
+#c(mse.ridge, mse.ridgeConservative)
+
+# Linear Discrim. Analysis
 
 # Logistic Regression
