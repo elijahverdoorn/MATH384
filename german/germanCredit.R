@@ -2,6 +2,8 @@ library(dplyr)
 library(glmnet)
 library(ggplot2)
 library(glmnet)
+library(MASS)
+library(class)
 ###
 # Cost Matrix:
 # False Positive - 5
@@ -34,6 +36,9 @@ numericTrain.df <- germanCreditNumeric.df[51:1000,]
 numericTest.mat <- data.matrix(numericTest.df)
 numericTrain.mat <- data.matrix(numericTrain.df)
 
+germanTest.df <- germanCredit.df[1:50,]
+germanTrain.df <- germanCredit.df[51:1000,]
+
 # Lasso
 # TODO: use lasso to select variables, then feed those variables to LDA and logistic regression
 
@@ -60,19 +65,19 @@ crossValidatedLassoModel <- cv.glmnet(xNumericTrain.mat, yNumericTrain.mat, alph
 (lambda1 <- crossValidatedLassoModel$lambda.1se)
 mod.lasso <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambda0, intercept = TRUE) # use the optimal lambda
 
-mod.lassoConservative <- glmnet(x.train, y.train, alpha = 1, lambda = lambda1, intercept = TRUE) # a more conservative estimate, for comparison
+mod.lassoConservative <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambda1, intercept = TRUE) # a more conservative estimate, for comparison
 
 coef.lasso <- coef(mod.lasso)
 coef.lassoConservative <- coef(mod.lassoConservative)
 
 ## And finally, the mse
 pred.lasso <- predict(mod.lasso, newx = xNumericTest.mat)
-#pred.lassoConservative <- predict(mod.lassoConservative, newx = xNumericTest.mat)
+pred.lassoConservative <- predict(mod.lassoConservative, newx = xNumericTest.mat)
 mse.lasso <- with(numericTest.df, mean((pred.lasso - yNumericTest.mat)^2))
-#mse.lassoConservative <- with(numericTest.df, mean((pred.lassoConservative - yNumericTest.mat)^2))
+mse.lassoConservative <- with(numericTest.df, mean((pred.lassoConservative - yNumericTest.mat)^2))
 
 ## Comparison of errors
-#c(mse.lasso,mse.lassoConservative)
+c(mse.lasso, mse.lassoConservative)
 
 # Ridge Regression
 # build the matrices of variables in the format that glmnet wants
@@ -105,13 +110,32 @@ coef.ridgeConservative <- coef(mod.ridgeConservative)
 
 ## And finally, the mse
 pred.ridge <- predict(mod.ridge, newx = xNumericTest.mat)
-#pred.lassoConservative <- predict(mod.lassoConservative, newx = xNumericTest.mat)
+pred.ridgeConservative <- predict(mod.ridgeConservative, newx = xNumericTest.mat)
 mse.ridge <- with(numericTest.df, mean((pred.ridge - yNumericTest.mat)^2))
-#mse.lassoConservative <- with(numericTest.df, mean((pred.lassoConservative - yNumericTest.mat)^2))
+mse.ridgeConservative <- with(numericTest.df, mean((pred.ridgeConservative - yNumericTest.mat)^2))
 
 ## Comparison of errors
-#c(mse.ridge, mse.ridgeConservative)
+c(mse.ridge, mse.ridgeConservative)
 
 # Linear Discrim. Analysis
+coefRidge <- data.frame(data.matrix(coef(mod.ridge)))
+coefLasso <- data.frame(data.matrix(coef(mod.lasso))) # get the coefs into a data frame so that we can pick variables
+
+# using the following variables since they work well for the other models:
+# property_type_12A124
+# credit_history_3A31
+# purpose_4A46
+# other_debtors_or_grantors_10A102
+
+mod.lda <- lda(response ~ property_type_12A124 * credit_history_3A31 * purpose_4A46 * other_debtors_or_grantors_10A102, data = numericTrain.df)
+
+
+
 
 # Logistic Regression
+logisticRegrssionModel <- glm(response ~ property_type_12A124 * credit_history_3A31 * purpose_4A46 * other_debtors_or_grantors_10A102, data = numericTrain.df)
+summary(logisticRegrssionModel)
+threshold <- .5 # TODO: can we really just pick this??
+logisticTesting.df <- germanTest.df
+logisticRegressionProb <- predict(logisticRegrssionModel, data = logisticTesting.df)
+logisticTesting.df <- mutate(logisticTesting.df, logisticBinaryPrediction = ifelse(logisticRegressionProb > threshold, T, F)) # TODO: why does this give too many results?
