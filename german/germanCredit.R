@@ -4,13 +4,12 @@ library(ggplot2)
 library(glmnet)
 library(MASS)
 library(class)
-###
-# Cost Matrix:
-# False Positive - 5
-# False Negative - 1
-# True Negative - 0
-# True Positive - 0
-###
+
+# Cost Matrix
+costFalsePositive <- 5
+costFalseNegative <- 1
+costTrueNegative <- 0
+costTruePositive <- 0
 
 germanCreditNumeric.df <- read.csv("germanNumeric.csv", header = T) # read the numeric data
 germanCredit.df <- read.csv("german.csv", header = F, sep = "") # read the original data
@@ -23,6 +22,11 @@ names(germanCredit.df) <- c("chk_ac_status_1",
                             "number_cards_this_bank_16","job_17","no_people_liable_for_mntnance_18",
                             "telephone_19", "foreign_worker_20",
                             "good_bad_21")
+
+# the data comes with the response variable as a 1 or 2, I want T or F
+germanCredit.df <- germanCredit.df %>%
+  mutate(good_bad_21 = ifelse(germanCredit.df["good_bad_21"] == 1, F, T))
+
 
 germanCreditNumeric.df <- germanCreditNumeric.df %>% # add the response variable to the numeric data
     mutate(response = germanCredit.df[,21])
@@ -135,9 +139,30 @@ mod.lda <- lda(response ~ property_type_12A124 + credit_history_3A31 + purpose_4
 # Logistic Regression
 logisticRegrssionModel <- glm(response ~ property_type_12A124 + credit_history_3A31 + purpose_4A46 + other_debtors_or_grantors_10A102, data = numericTrain.df)
 summary(logisticRegrssionModel)
-threshold <- .5 # TODO: can we really just pick this?? opt this
-logisticTesting.df <- numericTest.df # change this
-logisticRegressionProb <- predict(logisticRegrssionModel, newdata = logisticTesting.df) # wrong data
-str(logisticTesting.df)
-logisticTesting.df <- mutate(logisticTesting.df,
-                             logisticBinaryPrediction = ifelse(logisticRegressionProb > threshold, T, F)) # TODO: why does this give too many results?
+logisticTesting.df <- numericTest.df
+logisticRegressionProb <- predict(logisticRegrssionModel, newdata = logisticTesting.df)
+maxThresh = 100
+bestLogisitcValue <- 99999999
+for (i in 1:maxThresh) {
+  threshold <- i / maxThresh # so that it's a decimal
+  logisticBinaryPrediction <- ifelse(logisticRegressionProb > threshold, TRUE, FALSE)
+  
+  with(logisticTesting.df, table(response, logisticBinaryPrediction)) # table of the prediction vs. actual
+  
+  truePositives <- sum(logisticTesting.df$response == T)
+  falsePositves <- sum(logisticTesting.df$response == F & logisticBinaryPrediction == T)
+  trueNegatives <- sum(logisticTesting.df$response == F)
+  falseNegatives <- sum(logisticTesting.df$response == T & logisticBinaryPrediction == F)
+  correctPositives <- sum(logisticTesting.df$response == T & logisticBinaryPrediction == T)
+  
+  totalValueLogistic <- (falseNegatives * costFalseNegative) + (falsePositves * costFalsePositive) - (correctPositives * costTruePositive)
+  if(totalValueLogistic < bestLogisitcValue) { # if the current value is the best one, save it. if not, try the next thresh val
+    bestLogisitcValue <- totalValueLogistic
+    bestThreshValue <- threshold
+  }
+}
+
+
+
+
+
