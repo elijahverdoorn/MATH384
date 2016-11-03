@@ -44,7 +44,6 @@ germanTest.df <- germanCredit.df[1:50,]
 germanTrain.df <- germanCredit.df[51:1000,]
 
 # Lasso
-# TODO: use lasso to select variables, then feed those variables to LDA and logistic regression
 
 # build the matrices of variables in the format that glmnet wants
 xNumericTrain.mat <- data.matrix(numericTrain.df[,1:49])
@@ -64,6 +63,7 @@ plot(lassoModel) # see what the model looks like
 
 # get the optimal lambda
 crossValidatedLassoModel <- cv.glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambdaGrid, intercept = TRUE) # cross validate
+plot(crossValidatedLassoModel) # plot the model
 
 (lambda0 <- crossValidatedLassoModel$lambda.min)
 (lambda1 <- crossValidatedLassoModel$lambda.1se)
@@ -79,6 +79,25 @@ pred.lasso <- predict(mod.lasso, newx = xNumericTest.mat)
 pred.lassoConservative <- predict(mod.lassoConservative, newx = xNumericTest.mat)
 mse.lasso <- with(numericTest.df, mean((pred.lasso - yNumericTest.mat)^2))
 mse.lassoConservative <- with(numericTest.df, mean((pred.lassoConservative - yNumericTest.mat)^2))
+
+bestLassoValue <- 9999999
+maxThresh <- 100
+for(i in 1:maxThresh) {
+    threshold <- i / maxThresh # so that it's a decimal
+    lassoBinaryPrediction <- ifelse(pred.lasso > threshold, TRUE, FALSE)
+    
+    truePositivesLasso <- sum(numericTest.df$response == T)
+    falsePositvesLasso <- sum(numericTest.df$response == F & lassoBinaryPrediction == T)
+    trueNegativesLasso <- sum(numericTest.df$response == F)
+    falseNegativesLasso <- sum(numericTest.df$response == T & lassoBinaryPrediction == F)
+    correctPositivesLasso <- sum(numericTest.df$response == T & lassoBinaryPrediction == T)
+    
+    totalValueLasso <- (falseNegativesLasso * costFalseNegative) + (falsePositvesLasso * costFalsePositive) - (correctPositivesLasso * costTruePositive)
+    if(totalValueLasso < bestLassoValue) { # if the current value is the best one, save it. if not, try the next thresh val
+        bestLassoValue <- totalValueLasso
+        bestThreshValueLasso <- threshold
+    }
+}
 
 ## Comparison of errors
 c(mse.lasso, mse.lassoConservative)
@@ -102,23 +121,45 @@ plot(ridgeModel) # see what the model looks like
 
 # get the optimal lambda
 crossValidatedRidgeModel <- cv.glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambdaGrid, intercept = TRUE) # cross validate
+plot(crossValidatedRidgeModel)
 
 (lambda0 <- crossValidatedRidgeModel$lambda.min)
 (lambda1 <- crossValidatedRidgeModel$lambda.1se)
-mod.ridge <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambda0, intercept = TRUE) # use the optimal lambda
+mod.ridge <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambda0, family = "binomial", intercept = TRUE) # use the optimal lambda
 
-mod.ridgeConservative <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambda1, intercept = TRUE) # a more conservative estimate, for comparison
+mod.ridgeConservative <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, family = "binomial", lambda = lambda1, intercept = TRUE) # a more conservative estimate, for comparison
 
 coef.ridge <- coef(mod.ridge)
 coef.ridgeConservative <- coef(mod.ridgeConservative)
 
-## And finally, the mse
-pred.ridge <- predict(mod.ridge, newx = xNumericTest.mat)
-pred.ridgeConservative <- predict(mod.ridgeConservative, newx = xNumericTest.mat)
+# And finally, the mse
+pred.ridge <- predict(mod.ridge, newx = xNumericTest.mat, type="response")
+hist(pred.ridge) # make sure it's between 0 and 1
+pred.ridgeConservative <- predict(mod.ridgeConservative, type="response", newx = xNumericTest.mat)
+hist(pred.ridgeConservative)
 mse.ridge <- with(numericTest.df, mean((pred.ridge - yNumericTest.mat)^2))
 mse.ridgeConservative <- with(numericTest.df, mean((pred.ridgeConservative - yNumericTest.mat)^2))
 
-## Comparison of errors
+bestRidgeValue <- 9999999
+maxThresh <- 100
+for(i in 1:maxThresh) {
+    threshold <- i / maxThresh # so that it's a decimal
+    ridgeBinaryPrediction <- ifelse(pred.ridge > threshold, TRUE, FALSE)
+    
+    truePositivesRidge <- sum(numericTest.df$response == T)
+    falsePositvesRidge <- sum(numericTest.df$response == F & ridgeBinaryPrediction == T)
+    trueNegativesRidge <- sum(numericTest.df$response == F)
+    falseNegativesRidge <- sum(numericTest.df$response == T & ridgeBinaryPrediction == F)
+    correctPositivesRidge <- sum(numericTest.df$response == T & ridgeBinaryPrediction == T)
+    
+    totalValueRidge <- (falseNegativesRidge * costFalseNegative) + (falsePositvesRidge * costFalsePositive) - (correctPositivesRidge * costTruePositive)
+    if(totalValueRidge < bestRidgeValue) { # if the current value is the best one, save it. if not, try the next thresh val
+        bestRidgeValue <- totalValueRidge
+        bestThreshValueRidge <- threshold
+    }
+}
+
+# Comparison of errors
 c(mse.ridge, mse.ridgeConservative)
 
 # Linear Discrim. Analysis
@@ -133,22 +174,22 @@ coefLasso <- data.frame(data.matrix(coef(mod.lasso))) # get the coefs into a dat
 
 mod.lda <- lda(response ~ property_type_12A124 + credit_history_3A31 + purpose_4A46 + other_debtors_or_grantors_10A102, data = numericTrain.df)
 summary(mod.lda)
-ldaPredictions <- predict(mod.lda, numericTest.df)
+ldaPredictions <- predict(mod.lda, numericTest.df, type = "response")
 maxThresh <- 100
 bestLDAValue <- 99999999
 for (i in 1:maxThresh) {
   threshold <- i / maxThresh # so that it's a decimal
-  LDABinaryPrediction <- ifelse(ldaPredictions > threshold, TRUE, FALSE)
+  LDABinaryPrediction <- ifelse(ldaPredictions$x > threshold, TRUE, FALSE)
 
   with(numericTest.df, table(response, LDABinaryPrediction))
 
-  truePositives <- sum(numericTesting.df$response == T)
-  falsePositves <- sum(numericTesting.df$response == F & LDABinaryPrediction == T)
-  trueNegatives <- sum(numericTesting.df$response == F)
-  falseNegatives <- sum(numericTesting.df$response == T & LDABinaryPrediction == F)
-  correctPositives <- sum(numericTesting.df$response == T & LDABinaryPrediction == T)
+  truePositivesLDA <- sum(numericTest.df$response == T)
+  falsePositvesLDA <- sum(numericTest.df$response == F & LDABinaryPrediction == T)
+  trueNegativesLDA <- sum(numericTest.df$response == F)
+  falseNegativesLDA <- sum(numericTest.df$response == T & LDABinaryPrediction == F)
+  correctPositivesLDA <- sum(numericTest.df$response == T & LDABinaryPrediction == T)
 
-  totalValueLDA <- (falseNegatives * costFalseNegative) + (falsePositves * costFalsePositive) - (correctPositives * costTruePositive)
+  totalValueLDA <- (falseNegativesLDA * costFalseNegative) + (falsePositvesLDA * costFalsePositive) - (correctPositivesLDA * costTruePositive)
 
   if(totalValueLDA < bestLDAValue) { # if the current value is the best one, save it. if not, try the next thresh val
     bestLDAValue <- totalValueLDA
@@ -169,20 +210,20 @@ for (i in 1:maxThresh) {
   
   with(logisticTesting.df, table(response, logisticBinaryPrediction)) # table of the prediction vs. actual
   
-  truePositives <- sum(logisticTesting.df$response == T)
-  falsePositves <- sum(logisticTesting.df$response == F & logisticBinaryPrediction == T)
-  trueNegatives <- sum(logisticTesting.df$response == F)
-  falseNegatives <- sum(logisticTesting.df$response == T & logisticBinaryPrediction == F)
-  correctPositives <- sum(logisticTesting.df$response == T & logisticBinaryPrediction == T)
+  truePositivesLogistic <- sum(logisticTesting.df$response == T)
+  falsePositvesLogistic <- sum(logisticTesting.df$response == F & logisticBinaryPrediction == T)
+  trueNegativesLogistic <- sum(logisticTesting.df$response == F)
+  falseNegativesLogistic <- sum(logisticTesting.df$response == T & logisticBinaryPrediction == F)
+  correctPositivesLogistic <- sum(logisticTesting.df$response == T & logisticBinaryPrediction == T)
   
-  totalValueLogistic <- (falseNegatives * costFalseNegative) + (falsePositves * costFalsePositive) - (correctPositives * costTruePositive)
+  totalValueLogistic <- (falseNegativesLogistic * costFalseNegative) + (falsePositvesLogistic * costFalsePositive) - (correctPositivesLogistic * costTruePositive)
   if(totalValueLogistic < bestLogisitcValue) { # if the current value is the best one, save it. if not, try the next thresh val
     bestLogisitcValue <- totalValueLogistic
     bestThreshValueLogistic <- threshold
   }
 }
 
-
+c(bestLassoValue, bestRidgeValue, bestLDAValue, bestLogisitcValue)
 
 
 
