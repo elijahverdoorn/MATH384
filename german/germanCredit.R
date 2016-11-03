@@ -118,7 +118,7 @@ mse.ridgeConservative <- with(numericTest.df, mean((pred.ridgeConservative - yNu
 c(mse.ridge, mse.ridgeConservative)
 
 # Linear Discrim. Analysis
-coefRidge <- data.frame(data.matrix(coef(mod.ridge)))
+coefRidge <- data.frame(data.matrix(coef(mod.ridge))) 
 coefLasso <- data.frame(data.matrix(coef(mod.lasso))) # get the coefs into a data frame so that we can pick variables
 
 # using the following variables since they work well for the other models:
@@ -127,15 +127,17 @@ coefLasso <- data.frame(data.matrix(coef(mod.lasso))) # get the coefs into a dat
 # purpose_4A46
 # other_debtors_or_grantors_10A102
 
-mod.lda <- lda(response ~ property_type_12A124 * credit_history_3A31 * purpose_4A46 * other_debtors_or_grantors_10A102, data = numericTrain.df)
+mod.lda <- lda(response ~ property_type_12A124 + credit_history_3A31 + purpose_4A46 + other_debtors_or_grantors_10A102, data = numericTrain.df)
 
 
 
 
 # Logistic Regression
-logisticRegrssionModel <- glm(response ~ property_type_12A124 * credit_history_3A31 * purpose_4A46 * other_debtors_or_grantors_10A102, data = numericTrain.df)
+logisticRegrssionModel <- glm(response ~ property_type_12A124 + credit_history_3A31 + purpose_4A46 + other_debtors_or_grantors_10A102, data = numericTrain.df)
 summary(logisticRegrssionModel)
-threshold <- .5 # TODO: can we really just pick this??
-logisticTesting.df <- germanTest.df
-logisticRegressionProb <- predict(logisticRegrssionModel, data = logisticTesting.df)
-logisticTesting.df <- mutate(logisticTesting.df, logisticBinaryPrediction = ifelse(logisticRegressionProb > threshold, T, F)) # TODO: why does this give too many results?
+threshold <- .5 # TODO: can we really just pick this?? opt this
+logisticTesting.df <- numericTest.df # change this
+logisticRegressionProb <- predict(logisticRegrssionModel, newdata = logisticTesting.df) # wrong data
+str(logisticTesting.df)
+logisticTesting.df <- mutate(logisticTesting.df,
+                             logisticBinaryPrediction = ifelse(logisticRegressionProb > threshold, T, F)) # TODO: why does this give too many results?
