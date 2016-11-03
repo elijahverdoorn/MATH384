@@ -132,16 +132,36 @@ coefLasso <- data.frame(data.matrix(coef(mod.lasso))) # get the coefs into a dat
 # other_debtors_or_grantors_10A102
 
 mod.lda <- lda(response ~ property_type_12A124 + credit_history_3A31 + purpose_4A46 + other_debtors_or_grantors_10A102, data = numericTrain.df)
+summary(mod.lda)
+ldaPredictions <- predict(mod.lda, numericTest.df)
+maxThresh <- 100
+bestLDAValue <- 99999999
+for (i in 1:maxThresh) {
+  threshold <- i / maxThresh # so that it's a decimal
+  LDABinaryPrediction <- ifelse(ldaPredictions > threshold, TRUE, FALSE)
 
+  with(numericTest.df, table(response, LDABinaryPrediction))
 
+  truePositives <- sum(numericTesting.df$response == T)
+  falsePositves <- sum(numericTesting.df$response == F & LDABinaryPrediction == T)
+  trueNegatives <- sum(numericTesting.df$response == F)
+  falseNegatives <- sum(numericTesting.df$response == T & LDABinaryPrediction == F)
+  correctPositives <- sum(numericTesting.df$response == T & LDABinaryPrediction == T)
 
+  totalValueLDA <- (falseNegatives * costFalseNegative) + (falsePositves * costFalsePositive) - (correctPositives * costTruePositive)
+
+  if(totalValueLDA < bestLDAValue) { # if the current value is the best one, save it. if not, try the next thresh val
+    bestLDAValue <- totalValueLDA
+    bestThreshValueLDA <- threshold
+  }
+}
 
 # Logistic Regression
 logisticRegrssionModel <- glm(response ~ property_type_12A124 + credit_history_3A31 + purpose_4A46 + other_debtors_or_grantors_10A102, data = numericTrain.df)
 summary(logisticRegrssionModel)
 logisticTesting.df <- numericTest.df
 logisticRegressionProb <- predict(logisticRegrssionModel, newdata = logisticTesting.df)
-maxThresh = 100
+maxThresh <- 100
 bestLogisitcValue <- 99999999
 for (i in 1:maxThresh) {
   threshold <- i / maxThresh # so that it's a decimal
@@ -158,7 +178,7 @@ for (i in 1:maxThresh) {
   totalValueLogistic <- (falseNegatives * costFalseNegative) + (falsePositves * costFalsePositive) - (correctPositives * costTruePositive)
   if(totalValueLogistic < bestLogisitcValue) { # if the current value is the best one, save it. if not, try the next thresh val
     bestLogisitcValue <- totalValueLogistic
-    bestThreshValue <- threshold
+    bestThreshValueLogistic <- threshold
   }
 }
 
