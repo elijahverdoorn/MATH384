@@ -1,3 +1,12 @@
+---
+title: "German Credit"
+author: "Elijah Verdoorn"
+date: "November 3, 2016"
+output: html_document
+---
+# Set Up
+
+```{r}
 library(dplyr)
 library(glmnet)
 library(ggplot2)
@@ -31,6 +40,10 @@ germanCredit.df <- germanCredit.df %>%
 germanCreditNumeric.df <- germanCreditNumeric.df %>% # add the response variable to the numeric data
     mutate(response = germanCredit.df[,21])
 
+```
+This section gets the set-up going, grabs the data and defines some constants
+
+```{r}
 # get the data into the form that we want it in
 # 75% of the sample size
 sampleSizeNumeric <- floor(0.75 * nrow(germanCreditNumeric.df))
@@ -49,7 +62,11 @@ numericTrain.mat <- data.matrix(numericTrain.df)
 germanTest.df <- germanCredit.df[trainIndex,]
 germanTrain.df <- germanCredit.df[-trainIndex,]
 
+```
+This section uses a sampler to grab a portion of the data for testing and another portion for training.
+
 # Lasso
+```{r}
 
 # build the matrices of variables in the format that glmnet wants
 xNumericTrain.mat <- data.matrix(numericTrain.df[,1:49])
@@ -63,10 +80,18 @@ expVals <- seq(-4, 4, length = numLambda)
 lambdaGrid <- 10^expVals
 plot(expVals, lambdaGrid) # make sure that it looks exponential
 
+```
+This plot is the graph of the lambda values, which we use to verify that the lambdas are of the form that we want.
+
+```{r}
 lassoModel <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambdaGrid, intercept = TRUE) # use the lambdas that we just made to find the ideal value
-coef(lassoModel) # look at the coefficients of the model
+# coef(lassoModel) # look at the coefficients of the model
 plot(lassoModel) # see what the model looks like
 
+```
+A plot of the lasso model
+
+```{r}
 # get the optimal lambda
 crossValidatedLassoModel <- cv.glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1, lambda = lambdaGrid, intercept = TRUE) # cross validate
 plot(crossValidatedLassoModel) # plot the model
@@ -79,13 +104,22 @@ mod.lassoConservative <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 1,
 
 coef.lasso <- coef(mod.lasso)
 coef.lassoConservative <- coef(mod.lassoConservative)
+```
+The above cross-validates the lasso model and stores the coefficient values. The _conservative_ version of the model will be a second option, we will pick the model that has the better MSE to continue with.
 
+```{r}
 ## And finally, the mse
 pred.lasso <- predict(mod.lasso, newx = xNumericTest.mat)
 pred.lassoConservative <- predict(mod.lassoConservative, newx = xNumericTest.mat)
 mse.lasso <- with(numericTest.df, mean((pred.lasso - yNumericTest.mat)^2))
 mse.lassoConservative <- with(numericTest.df, mean((pred.lassoConservative - yNumericTest.mat)^2))
+## Comparison of errors
+c(mse.lasso, mse.lassoConservative)
 
+```
+Calculating the MSE of the lasso models and comparing the MSEs of each.
+
+```{r}
 bestLassoValue <- 9999999
 maxThresh <- 100
 ratesMatrixLasso <- matrix(ncol = 3, nrow = maxThresh)
@@ -109,10 +143,12 @@ for(i in 1:maxThresh) {
     fpRateLasso <- (truePositivesLasso - correctPositivesLasso) / trueNegativesLasso
     ratesMatrixLasso[i,] = c(threshold, tpRateLasso, fpRateLasso)
 }
+```
+Now we can go ahead and get the false positive/negative rates for each possible threshold value, then pick the optimal threshold out of the bunch and save that value.
 
-## Comparison of errors
-c(mse.lasso, mse.lassoConservative)
-
+# Ridge Regression
+Since Ridge operates similarly to the lasso, much of the code can be the same. For that reason, the code below is in one block rather than explained like above.
+```{r}
 # Ridge Regression
 # build the matrices of variables in the format that glmnet wants
 xNumericTrain.mat <- data.matrix(numericTrain.df[,1:49])
@@ -127,7 +163,6 @@ lambdaGrid <- 10^expVals
 plot(expVals, lambdaGrid) # make sure that it looks exponential
 
 ridgeModel <- glmnet(xNumericTrain.mat, yNumericTrain.mat, alpha = 0, lambda = lambdaGrid, intercept = TRUE) # use the lambdas that we just made to find the ideal value
-coef(ridgeModel) # look at the coefficients of the model
 plot(ridgeModel) # see what the model looks like
 
 # get the optimal lambda
@@ -178,20 +213,32 @@ for(i in 1:maxThresh) {
 
 # Comparison of errors
 c(mse.ridge, mse.ridgeConservative)
+```
 
+# LDA
+```{r}
 # Linear Discrim. Analysis
 coefRidge <- data.frame(data.matrix(coef(mod.ridge))) 
 coefLasso <- data.frame(data.matrix(coef(mod.lasso))) # get the coefs into a data frame so that we can pick variables
+```
+The LDA analysis of the model starts with getting the coefficients from the lasso analysis that worked well so that we can limit the scope of the LDA model a bit.
 
-# using the following variables since they work well for the other models:
-# property_type_12A124
-# credit_history_3A31
-# purpose_4A46
-# other_debtors_or_grantors_10A102
+We end up using the following variables since they work well for the other models:
+property_type_12A124,
+credit_history_3A31,
+purpose_4A46,
+and other_debtors_or_grantors_10A102.
 
+We then build the model and take a look at the summary.
+```{r}
 mod.lda <- lda(response ~ property_type_12A124 + credit_history_3A31 + purpose_4A46 + other_debtors_or_grantors_10A102, data = numericTrain.df)
 summary(mod.lda)
+```
+
+After verifying that the model is reasonable, make predictions and we again look for the optimal threshold and save that information along with the rate of false positives and negatives.
+```{r}
 ldaPredictions <- predict(mod.lda, numericTest.df, type = "response")
+
 maxThresh <- 100
 bestLDAValue <- 99999999
 ratesMatrixLDA <- matrix(ncol = 3, nrow = maxThresh)
@@ -218,8 +265,11 @@ for (i in 1:maxThresh) {
   fpRateLDA <- (truePositivesLDA - correctPositivesLDA) / trueNegativesLDA
   ratesMatrixLDA[i,] = c(threshold, tpRateLDA, fpRateLDA)
 }
+```
 
 # Logistic Regression
+The process behind logistiv regression is very similar to the process that drives LDA, so we again have very similar code.
+```{r}
 logisticRegrssionModel <- glm(response ~ property_type_12A124 + credit_history_3A31 + purpose_4A46 + other_debtors_or_grantors_10A102, data = numericTrain.df)
 summary(logisticRegrssionModel)
 logisticTesting.df <- numericTest.df
@@ -249,8 +299,16 @@ for (i in 1:maxThresh) {
   fpRateLogistic <- (truePositivesLogistic - correctPositivesLogistic) / trueNegativesLogistic
   ratesMatrixLogistic[i,] = c(threshold, tpRateLogistic, fpRateLogistic)
 }
+```
 
+# Analysis
+```{r}
 c(bestLassoValue, bestRidgeValue, bestLDAValue, bestLogisitcValue)
+```
+Let's take a look at the relative successes of each model according to the provided scoring matrix.
+
+And, as requested, we have ROC curves for each model.
+```{r}
 
 # use lasso 
 ratesLasso.df <- data.frame(ratesMatrixLasso)
@@ -271,5 +329,9 @@ ggplot(ratesLDA.df, aes(falsePositiveRate, truePositiveRate)) + geom_point()
 ratesLogistic.df <- data.frame(ratesMatrixLogistic)
 colnames(ratesLogistic.df) <- c("p", "truePositiveRate", "falsePositiveRate")
 ggplot(ratesLogistic.df, aes(falsePositiveRate, truePositiveRate)) + geom_point()
+```
 
+They don't look great.
 
+## Conclusion
+In this situation, I would use the lasso or ridge models for prediction. There are so many predictors in the numeric set that we would have to reduce to the important ones for anything else to be effective, which necessitates using the lasso or ridge techniques anyway.
