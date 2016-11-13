@@ -1,20 +1,40 @@
+---
+title: "Midterm Project"
+author: "Elijah Verdoorn"
+date: "November 13, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
 library(dplyr)
 library(glmnet)
 library(ggplot2)
 library(glmnet)
 library(MASS)
 library(class)
+```
 
+#Note
+I've set up this assignment in a funcitonal manner. This should make the code easier to understand.
+
+#Function Definitions
+```{r}
 # randomize the sample
 getSampleIndexes <- function(percent = 0.85, nrows) {
     return(floor(percent * nrows))
 }
+```
+This function gets the indicies for the purposes of training and testing.
 
+```{r}
 # bootstrap the data
 bootstrapData <- function(dataFrame) {
     return(dataFrame[sample(nrow(dataFrame), size = nrow(dataFrame), replace = T),])
 }
+```
+This function bootstraps the data provided to it, an important part of the process that we're seeking to execute.
 
+```{r}
 # perform ridge regression
 # Args: 
 # dataFrame = the data
@@ -36,7 +56,10 @@ doRidgeRegression <- function(trainDataFrame, testDataFrame, responseVariableInd
 
     return(prediction)
 }
+```
+This is the most complicated function that we have, which we use to perform cross-validated ridge regression on a data set.
 
+```{r}
 # the summary function described in the assignment
 # Args:
 # yhat = the prediction set
@@ -47,7 +70,13 @@ sumFunc <- function(yhat, comparison) {
     
     return(mean(yhat / comparison))
 }
+```
+This is the summary function that we see described in the assignment. Honestly, I am less than certian that I have implemented it correctly. It returns a reasonable value, so I'm going with it, but I'd like to verify I've done it right.
 
+#Analysis
+With the functions defined, we can now move on to analyzing the data for the election.
+
+```{r}
 # Constant Parameters
 sStar <- .5 # the number needed to win the election
 
@@ -69,7 +98,10 @@ testingData.df <- masterData.df[-trainIndex,]
 trainingPopulations.mat <- matrix(nrow = nrow(testingData.df), ncol = 1)
 trainingPopulations.mat <- testingData.df[,57]
 trainingPopulations.mat <- trainingPopulations.mat + testingData.df[,59]
+```
+We do some data setup, nothing fancy.
 
+```{r}
 # Ridge Regression
 numberIterations <- 50
 predictions.mat <- matrix(nrow = nrow(testingData.df), ncol = numberIterations)
@@ -78,7 +110,10 @@ for(i in 1:numberIterations) {
     prediction <- doRidgeRegression(bootstrappedData.df, testingData.df, 57)
     predictions.mat[,i] <- prediction # store a matrix of the predictions
 }
+```
+We use the ridge regression function that we setup earlier to get the predictions. I chose ridge regression since there are a lot of features in this data set when compared to the number of observations.
 
+```{r}
 k <- 100 # the number of times to do the sampling/calculating
 sList <- matrix(nrow = k, ncol = 1)
 for(j in 1:k) {
@@ -89,7 +124,11 @@ for(j in 1:k) {
     
     sList[j,1] <- sumFunc(yhatSample, trainingPopulations.mat) # run the sample function on this set
 }
+```
+Sample the predictions 100 times, then run the sum function on the result. We store that result in a list for use to calculate the percent.
 
-
+```{r}
 victoryPercent <- sum(sList) / k # average the scores to get a % chance of victory
 victoryPercent
+```
+The `victoryPercent` variable is the reesult of all our work. It's a little lower than we would expect, considering that Obama did win the election, but much like the recent presidential election, that doesn't mean that I'm wrong, it just means that the election fell on the other side.
