@@ -1,0 +1,253 @@
+---
+title: "SPAM and Trees"
+author: "Matt Richey"
+date: "October 12, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r,message = F}
+library(tidyverse)
+library(tree)
+```
+
+Predict SPAM values. Need train/test data. We will use
+cross-validated tree with pruning
+
+
+
+Read in the  SPAM data set (from UCI)
+```{r}
+spam.df <- read.csv("SPAM.csv",header=T)
+head(spam.df)
+
+```
+
+Make sure response is a Logical
+
+```{r}
+spam.df <- mutate(spam.df,IsSpam=factor(ifelse(IsSpam=="TRUE",1,0)))
+with(spam.df,table(IsSpam))
+str(spam.df$IsSpam)
+
+```
+
+Build  train and test data
+
+```{r}
+nn <- nrow(spam.df)
+train <- sample(1:nn,nn/2,rep=F)
+spamTrain.df <- spam.df[train,]
+spamTest.df <- spam.df[-train,]
+
+
+```
+
+Our first tree...make is sorta deep since we're going to prune it
+later
+
+```{r}
+spam.tree <- tree(IsSpam~.,data=spamTrain.df,
+                  control=tree.control(nrow(spamTrain.df),mindev=0.001))
+plot(spam.tree)
+text(spam.tree,cex=0.5)
+
+
+```
+
+Cross validate to find the optimal size
+
+```{r}
+spam.cv <- cv.tree(spam.tree,FUN=prune.misclass)
+plot(spam.cv)
+spam.cv
+
+```
+
+Dig out the optimal values..need to be careful here to make sure
+getting the optimal value
+I like to reverse the values to make sure we get smallest
+
+```{r}
+sz <- rev(spam.cv$size)
+(best.sz <- sz[which.min(rev(spam.cv$dev))])
+
+
+```
+
+Prune the tree and plot it.
+
+```{r}
+spam.prune=prune.tree(spam.tree,best=best.sz)
+spam.prune
+plot(spam.prune)
+text(spam.prune,cex=0.5)
+
+```
+
+
+Now we can make predictions on the Test data
+```{r}
+preds.test <- predict(spam.prune,newdata=spamTest.df,type="class")
+table(preds.test)
+
+```
+
+This will give you the probability of each class..Use this for an
+ROC curve or threshholding in general
+
+```{r}
+probs.test <- predict(spam.prune,newdata=spamTest.df,type="vector")
+hist(probs.test[,1],breaks=25)
+
+```
+
+How well did we do?
+
+```{r}
+with(spamTest.df,table(preds.test,IsSpam))
+with(spamTest.df,mean(preds.test!=IsSpam))
+
+```
+
+Not bad.  Now predict on the Training Data.. better
+
+```{r}
+preds.train <- predict(spam.prune,newdata=spamTrain.df,type="class")
+with(spamTrain.df,table(preds.train,IsSpam))
+with(spamTrain.df,mean(preds.train!=IsSpam))
+
+
+```
+
+## Bootstrap the data
+
+
+```{r}
+m.train <- nrow(spamTrain.df)
+m.test <- nrow(spamTest.df)
+B <- 40
+bootVals <- matrix(nrow=m.test,ncol=B)
+for(b in 1:B){
+  print(b)
+    boots <- sample(m.train,m.train,rep=T)
+    spamBoot.df <- spamTrain.df[boots,]
+    spam.tree <- tree(IsSpam~.,data=spamBoot.df,
+                      control=tree.control(nrow(spamBoot.df),
+                                           mindev=0.005))
+    ##For demo purposes...I'm not cross validating.
+    ##Assume depth of 15
+    # spam.cv <- cv.tree(spam.tree)
+    # sz <- rev(spam.cv$size)
+    # bs <- sz[which.min(rev(spam.cv$dev))]
+    bs<-15
+    spam.prune=prune.misclass(spam.tree,best=bs)
+    ###
+    preds.test <- predict(spam.prune,
+                           newdata=spamTest.df,
+                           type="class")
+    bootVals[,b] <-as.numeric(as.character(preds.test))
+}
+
+
+dim(bootVals)
+```
+
+
+Now we can see how well boot strapping did.
+First we take the mean of hte row, then compare with 1/2. 
+```{r}
+vals <- apply(bootVals,1,mean)
+preds.boot <- as.numeric(vals>0.5)
+with(spamTest.df,table(IsSpam,preds.boot))
+with(spamTest.df,mean(IsSpam != preds.boot))
+
+```
+
+
+This can be done (better) with the built in library/function randomForest.
+
+
+```{r}
+library(randomForest)
+p <- ncol(spamTrain.df)-1
+
+spam.bag <- randomForest(IsSpam~.,
+                         data=spamTrain.df,
+                         #mtry=sqrt(p), ## For Random Forest
+                         mtry=p, ##For BAG
+                         ntree=100)
+preds.bag <- predict(spam.bag,newdata=spamTest.df)
+with(spamTest.df,table(IsSpam,preds.bag))
+with(spamTest.df,mean(IsSpam!=preds.bag))
+```
+
+
+This shows the OOB error rate, the False Positive, and False Negative Error rates as a function of the number of trees.
+```{r}
+plot(spam.bag)
+```
+
+We can see how the random forest works by looking at its output.
+Among other things, we can see the OOB confusion matrix and error rates.
+
+```{r}
+spam.bag
+```
+
+Look at variable importance, that is, how much of does each variable contribute to the decrease in the Error Rate (Gini Factor) at each split.
+
+
+Turn importance into a data frame for plotting.
+```{r}
+vv<-spam.bag$importance
+(varImp.df<-data.frame(var=as.character(row.names(vv)),GiniDec=vv[,1]))
+```
+
+
+Put the variable variable in order of importance.
+
+```{r}
+varOrder<-varImp.df %>% 
+  arrange(GiniDec) %>% 
+  with(var)
+
+```
+
+Fix the factors in the order of importance.
+
+```{r}
+varImp.df<-varImp.df %>% 
+  mutate(var=factor(var,levels=varOrder))
+
+```
+
+
+Plot it....
+
+```{r}
+ggplot(varImp.df[1:20,])+
+  geom_bar(aes(x=var,GiniDec),stat="identity",fill="red",color="black",
+  width=0.5)+
+  scale_y_continuous("Gini Decrease")+
+  coord_flip()+
+  ggtitle("Top Twenty Variables in SPAM")
+
+```
+
+
+
+## Computing Out of Bag error
+
+The out of bag (OOB) error is derived by using the values that are not in the boot strap as the training data. 
+
+* Goal: Using our "by hand" bootstrap, compute the OOB error rate on the spamTrain data. How close does this come to predicting the the test error rate computed on spamTest?
+
+* Extra: Also compute the OOB False Positive and False Negative rates. This should be easy.
+
+* Extra Extra: Plot these rates as a function of hte number of trees used int the bootstrap. Doing so will recreate the plot of the random forest.
+
+*Plan*: As we boot strap, keep track of the OOB values as the test data. After creating the boot strap tree, predict on the OOB values. Store the results in a matrix
+
