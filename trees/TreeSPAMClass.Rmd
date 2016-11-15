@@ -130,6 +130,9 @@ m.train <- nrow(spamTrain.df)
 m.test <- nrow(spamTest.df)
 B <- 40
 bootVals <- matrix(nrow=m.test,ncol=B)
+
+preds.oob.mat <- matrix(nrow = m.train, ncol = B)
+
 for(b in 1:B){
   print(b)
     boots <- sample(m.train,m.train,rep=T)
@@ -137,11 +140,10 @@ for(b in 1:B){
     spam.tree <- tree(IsSpam~.,data=spamBoot.df,
                       control=tree.control(nrow(spamBoot.df),
                                            mindev=0.005))
-    ##For demo purposes...I'm not cross validating.
-    ##Assume depth of 15
-    # spam.cv <- cv.tree(spam.tree)
-    # sz <- rev(spam.cv$size)
-    # bs <- sz[which.min(rev(spam.cv$dev))]
+    
+    spam.cv <- cv.tree(spam.tree)
+    sz <- rev(spam.cv$size)
+    bs <- sz[which.min(rev(spam.cv$dev))]
     bs<-15
     spam.prune=prune.misclass(spam.tree,best=bs)
     ###
@@ -149,6 +151,12 @@ for(b in 1:B){
                            newdata=spamTest.df,
                            type="class")
     bootVals[,b] <-as.numeric(as.character(preds.test))
+    
+    # For the Assignment listed below
+    oob.vals <- setdiff(1:m.train, boots) # get the OOB values
+    spamOOB.df <- spamTrain.df[oob.vals,]
+    preds.oob <- predict(spam.prune, newdata = spamOOB.df, type = "class")
+    preds.oob.mat[oob.vals,b] <- as.numeric(as.character(preds.oob))
 }
 
 
