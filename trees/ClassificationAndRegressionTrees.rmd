@@ -1,9 +1,20 @@
+---
+title: "Classification and Regression Trees"
+author: "Elijah Verdoorn"
+date: "November 17, 2016"
+output: html_document
+---
+
+```{r}
 library(dplyr)
 library(tree)
 library(ISLR)
 library(rpart)
 library(randomForest)
+```
+Grab the libraries that we need
 
+```{r}
 # Get the data
 wineData.df <- read.csv("winequality-red.csv", sep = ";")
 wineData.df <- mutate(wineData.df, quality = factor(quality))
@@ -11,7 +22,10 @@ numRows <- nrow(wineData.df) # Reserve Train/Test
 trainIndicies <- sample(1:numRows, numRows/2, rep = F)
 wineDataTrain.df <- wineData.df[trainIndicies,] 
 wineDataTest.df <- wineData.df[-trainIndicies,] 
+```
+Do some quick splitting of the data for train and testing methods of optimization.
 
+```{r}
 # build the tree model
 wine.tree <- tree(quality~., wineDataTrain.df,
                   control = tree.control(nrow(wineDataTrain.df), mindev=0.001))
@@ -38,7 +52,10 @@ mse # not so good
 plot(preds.test, wineDataTest.df$quality)
 with(wineDataTrain.df, table(quality))
 with(wineDataTest.df, table(quality))
+```
+This snippit makes the first tree model for the wine data, then cross validates on a larger set of data. We look at the best tree from the cross validated set, then take that tree and test against it to get our best prediction. Calculating the MSE, we note that the result is rather poor.
 
+```{r}
 # do the optical character part
 characterTrain.df <- read.csv("optdigitsTrain.csv") %>% 
     mutate(digit = factor(digit))
@@ -67,8 +84,10 @@ probs.test <- predict(character.prune, characterTest.df, type = "vector")
 hist(probs.test[,1],breaks=25)
 with(characterTest.df,table(preds.test,digit))
 with(characterTest.df,mean(preds.test!=digit))
+```
+A similar process to the wine data, we look at the `optdigits` dataset. This also gives us a poor result using the standard test/train method.
 
-
+```{r}
 # bootstrapping the wine data  
 m.train <- nrow(wineDataTrain.df)
 m.test <- nrow(wineDataTest.df)
@@ -88,7 +107,10 @@ for(b in 1:B){
 }
 
 vals <- apply(bootVals,1,mean)
+```
+This section makes things a bit more interesting. We're interested in bootstrapping the wine data, which should give us a slightly better model for prediction. We observe that the result is actually rather similar to the one above, suggesting that we may be using the wrong model type for this data.
 
+```{r}
 # bootstrapping the digits data
 m.train <- nrow(characterTrain.df)
 m.test <- nrow(characterTest.df)
@@ -112,7 +134,10 @@ vals <- apply(bootVals,1,mean)
 preds.boot <- as.numeric(vals>0.5)
 with(characterTest.df,table(digit,preds.boot))
 with(characterTest.df,mean(digit != preds.boot))
+```
+Bootstrapping the optdigits dataset gives us another disappointing result, as we observe little improvement over the singular model test/train method.
 
+```{r}
 # using the random forest
 p <- ncol(characterTrain.df) - 1
 
@@ -122,5 +147,6 @@ character.bag <- randomForest(digit ~ .,
                          #mtry=p, ##For BAG
                          ntree = 100)
 preds.bag <- predict(character.bag, newdata = characterTest.df)
-with(characterTest.df, table(digit, character.bag))
 with(characterTest.df, mean(digit != character.bag))
+```
+Using the random forest model on the optdigits data should give us a much better prediction.

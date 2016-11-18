@@ -1,0 +1,60 @@
+library(dplyr)
+library(tree)
+library(ISLR)
+library(rpart)
+library(randomForest)
+library(gbm)
+
+# Get the data
+als.df <- read.table("http://web.stanford.edu/~hastie/CASI_files/DATA/ALS.txt",header=TRUE)
+alsTrain.df <- filter(als.df, !testset)
+alsTest.df <- filter(als.df, testset)
+
+numIter <- 10
+mse.mat <- matrix(nrow = numIter, ncol = 3)
+
+
+# Do random forest
+prediction.mat <- matrix(nrow = nrow(alsTest.df), ncol = numIter)
+for (i in 1:numIter) {
+    p <- ncol(alsTrain.df) - 1
+    numTrees <- i
+    als.bag <- randomForest(dFRS ~ .,
+                            data = alsTrain.df,
+                            mtry = p/3, ## For Random Forest
+                            ntree = 1)
+    preds.bag <- predict(als.bag, newdata = alsTest.df)
+    prediction.mat[,numTrees] <- preds.bag
+}
+for (i in 1:numIter) {
+    mseForest <- mean((prediction.mat[,1:i] - alsTest.df$dFRS)^2)
+    mseForest 
+    mse.mat[i, 1] <- mseForest
+}
+
+for(i in 1:numIter) {
+    # Do boosting
+    als.boost <- gbm(dFRS ~  . ,
+                    data = alsTrain.df[2:ncol(alsTrain.df)],
+                    n.trees = numTrees,
+                    distribution = "gaussian",
+                    interaction.depth = 4,
+                    shrinkage = 0.05,
+                    cv.folds = 5,
+                    verbose = T)
+
+    als.boost
+    summary(als.boost)
+    best.trees <- gbm.perf(als.boost)
+    best.trees
+    prob.boost <- predict(als.boost, newdata = alsTest.df,
+                      n.trees = best.trees, repsonse = "response")  
+    mseBoost <- mean((preds.bag - alsTest.df$dFRS)^2)
+    mseBoost 
+    mse.mat[numTrees, 2] <- mseBoost
+}
+
+# Do lasso
+# TODO: add lasso
+
+# TODO: add a loop around all these models, changing the number of trees. store the MSE from each, then graph them all
