@@ -10,7 +10,7 @@ library(e1071)
 # creates train$n, train$x, train$y  and test$n, test$x, test$y
 # e.g. train$x is a 60000 x 784 matrix, each row is one digit (28x28)
 # call:  show_digit(train$x[5,])   to see a digit.
-# brendan o'connor - gist.github.com/39760 - anyall.org
+# brendan o'connor - gist.github.com/39760 - anyall.org, modified by Elijah Verdoorn (elijahverdoorm.com) 11/30/16
 load_mnist <- function() {
     load_image_file <- function(filename) {
         ret = list()
@@ -40,16 +40,36 @@ load_mnist <- function() {
     test$y <<- load_label_file('test_set_labels')  
 }
 
-
 show_digit <- function(arr784, col=gray(12:1/12), ...) {
     image(matrix(arr784, nrow=28)[,28:1], col=col, ...)
 }
 
+# Make data frames from the imported data described above
 train.df <- data.frame(train)
 test.df <- data.frame(test)
 
+# print some to make sure that it's working, and find out how to access the data from the data frame
 train$x[5,]
 as.vector(t(train.df[5,2:785]))
 
+# use both the lists and data frames to access the data and display images
 show_digit(train$x[7,])
 show_digit(as.vector(t(train.df[7,2:785])))
+
+# average the images to get an idea of the distribution
+uniqueCols <- unique(train.df$y) # get the unique digits in the response col (y)
+avgVals <- matrix(nrow = length(uniqueCols), ncol = 784) # the matrix that will hold the averages
+for (i in 1:length(uniqueCols)) { # for each unique digit
+    # get values for the current digit, dropping the n and response columns
+    currentVals.df <- train.df[train.df$y == uniqueCols[i],]
+    drops <- c("n", "y")
+    currentVals.df <- currentVals.df[ , !(names(currentVals.df) %in% drops)]
+    for(j in 1:784) { # for each pixel (the images are 28x28, 28^2 = 784)
+        avgVals[i,j] <- mean(currentVals.df[,j])
+    } 
+}
+
+# display the image averages
+for (i in 1:nrow(avgVals)) {
+    show_digit(avgVals[i,])
+}
