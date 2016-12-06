@@ -73,3 +73,10 @@ for (i in 1:length(uniqueCols)) { # for each unique digit
 for (i in 1:nrow(avgVals)) {
     show_digit(avgVals[i,])
 }
+
+testImage <- as.vector((t(train.df[5,2:785])))
+# deskewing
+calulate_moments(image) {
+    totalImage <- sum(image)
+    mu_x <-     
+}
