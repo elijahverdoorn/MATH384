@@ -14,7 +14,7 @@ library(glmnet)
 ##   7. selector  field used to split data into two sets
 ##
 liver.df <-
-  read.csv("/Users/richeym/Dropbox/CLASSES/IntroStatLearn/DATA/BUPA_Liver.csv")
+  read.csv("bupaData.csv")
 
 names(liver.df) <- c("mcv","alkphos","sgpt","sgot","gannagt","drinks","class")
 head(liver.df)
