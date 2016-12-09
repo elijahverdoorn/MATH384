@@ -365,8 +365,3 @@ err.rad <- with(dat.df,mean( (class != svm.pred)))
 err.rad
 
 c(err.bayes,err.lin,err.rad)
-
-
-
-
-

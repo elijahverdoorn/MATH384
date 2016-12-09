@@ -1,12 +1,13 @@
-library(dplyr)
+library(ggplot2)library(dplyr)
 library(tree)
 library(ISLR)
 library(rpart)
+library(glmnet)
 library(randomForest)
 library(gbm)
 
 # Get the data
-als.df <- read.table("http://web.stanford.edu/~hastie/CASI_files/DATA/ALS.txt",header=TRUE)
+#als.df <- read.table("http://web.stanford.edu/~hastie/CASI_files/DATA/ALS.txt",header=TRUE)
 alsTrain.df <- filter(als.df, !testset)
 alsTest.df <- filter(als.df, testset)
 
@@ -34,6 +35,7 @@ for (i in 1:numIter) {
 
 for(i in 1:numIter) {
     # Do boosting
+    numTrees <- i
     als.boost <- gbm(dFRS ~  . ,
                     data = alsTrain.df[2:ncol(alsTrain.df)],
                     n.trees = numTrees,
@@ -51,10 +53,18 @@ for(i in 1:numIter) {
                       n.trees = best.trees, repsonse = "response")  
     mseBoost <- mean((preds.bag - alsTest.df$dFRS)^2)
     mseBoost 
-    mse.mat[numTrees, 2] <- mseBoost
+    mse.mat[i, 2] <- mseBoost
 }
 
 # Do lasso
 # TODO: add lasso
+als.lasso <- glmnet(as.matrix(alsTrain.df[, -2]), alsTrain.df$dFRS, alpha = 1, lambda = 1, intercept = TRUE)
+als.lasso
+summary(als.lasso)
+preds.lasso <- predict(als.lasso, newx = as.matrix(alsTest.df[, -2]))
+mse.lasso <- mean((preds.lasso - alsTest.df$dFRS)^2)
+mse.lasso
 
+# plot it
+ggplot(data = data.frame(mse.mat), aes(1:numIter)) + geom_line()
 # TODO: add a loop around all these models, changing the number of trees. store the MSE from each, then graph them all
