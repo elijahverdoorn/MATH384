@@ -86,10 +86,19 @@ appr_multiplication <- function(matA, matB, sampleSize) {
     }
     uniqueColsC <- t(unique(t(C_d)))
     uniqueRowsR <- unique(R_d)
+    R_s <- matrix(nrow = sampleSize, ncol = ncol(matB))
+    C_s <- matrix(nrow = nrow(matA), ncol = sampleSize)
     for (i in 1:sampleSize) {
-        
+        u <- # number of instances of this row in the full set of Rs
+        for (j in 1:nrow(R_d)) { # count the instances of this column in the initial subspace
+            if (identical(r_D[j,], uniqueRowsR[i,])) {
+                u <- u + 1
+            }
+        }
+        R_s[i,] <- u * uniqueRowsR[i,]
+        C_s[,i] <- uniqueColsC[,i]
     }
-    
+    return(list("c" = C_s, "R" = R_s)) 
 }
 
 # generate random testing matrix
