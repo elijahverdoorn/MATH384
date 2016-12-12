@@ -39,18 +39,18 @@ cmd_subspace_construction <- function(mat, c) {
     initSubspace <- initial_subspace_construction(mat, c)
     initSubspace <- apply(initSubspace, c(1,2), round, digits = 5) # round the initSubspace so that unique() will work 
     uniqueCols <- t(unique(t(initSubspace)))
-    uniqueColsTranspose <- t(uniqueCols)
-    initSubspaceTranspose <- t(initSubspace)
-    numUniqueCols <- nrow(uniqueCols)
+    numUniqueCols <- ncol(uniqueCols)
     returner <- matrix(nrow = nrow(initSubspace), ncol = numUniqueCols)
     for (i in 1:numUniqueCols) {
         numInstancesInInitSubspace <- 0
-        for (i in 1:ncol()) {
-            
+        for (j in 1:ncol(initSubspace)) { # count the instances of this column in the initial subspace
+            if (identical(initSubspace[,j], uniqueCols[,i])) {
+              numInstancesInInitSubspace <- numInstancesInInitSubspace + 1
+            }
         }
         returner[,i] <- sqrt(numInstancesInInitSubspace) * t(uniqueCols[,i])
     }
-    jeturn(initSubspace)
+    return(initSubspace)
 }
 
 # generate random testing matrix
