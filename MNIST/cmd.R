@@ -53,6 +53,45 @@ cmd_subspace_construction <- function(mat, c) {
     return(initSubspace)
 }
 
+# perform the process defined in fig 5
+# ARGS: A, a c*m matrix
+#       B, a m*n matrix
+#       r, a sample size
+appr_multiplication <- function(matA, matB, sampleSize) {
+    q <- vector(length = nrow(matB)) # the row distribution (I think??? TODO: check this)
+    # sum the entrire matB matrix, we only do this once for efficiency
+    matrixSum <- 0
+    for (i in 1:ncol(matB)) {
+        columnSum <- 0
+        for (j in 1:nrow(matB)) {
+            element <- matB[j, i] ^ 2
+            columnSum <- columnSum + element
+        }
+        matrixSum <- matrixSum + columnSum
+    }
+    # row distribution of matB
+    for (x in 1:nrow(matB)) {
+        rowSum <- 0
+        for (i in 1:ncol(matB)) {
+            rowSum <- rowSum + matB[x,i] ^ 2
+        }
+        q[x] <- rowSum / matrixSum 
+    }
+    R_d <- matrix(nrow = sampleSize, ncol = ncol(matB))
+    C_d <- matrix(nrow = nrow(matA), ncol = sampleSize)
+    for (i in 1:sampleSize) {
+        j <- sample(1:sampleSize, size = 1, replace = TRUE, prob = q)
+        R_d[i,] <- matB[j,] / sqrt(sampleSize * q[j])
+        C_d[,i] <- matA[,j] / sqrt(sampleSize * q[j])
+    }
+    uniqueColsC <- t(unique(t(C_d)))
+    uniqueRowsR <- unique(R_d)
+    for (i in 1:sampleSize) {
+        
+    }
+    
+}
+
 # generate random testing matrix
 make_test_data <- function (row, col) {
     testMatrix <- matrix(nrow  = row, ncol = col)
@@ -68,3 +107,5 @@ c <- 6
 mat <- make_test_data(6,10)
 testMatrix <- make_test_data(6, 6)
 subspace <- cmd_subspace_construction(testMatrix, 3)
+svdSubspace <- svd(subspace)
+svdSubspace
