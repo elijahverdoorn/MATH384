@@ -13,3 +13,8 @@ Since the dataset has 784 predictors, feature selection methods such as least ab
 
 # Derivation of LASSO Feature Selection
 LASSO feature selection can be derived from linear algebra principles. The 
+
+# Compact Matrix Decomposition
+In an effort to improve computation speed, specifically around the training of new models, optimization techniques are applied. These techniques range in effectiveness and complexity, and are a very active area of mathematic research.
+One recently developed technique is the Compact Matrix Decomposition (CMD). The CMD was developed at Carnegie Mellon University, and first published in the paper "Less is More: Compact Matrix Decomposition for Large Sparse Graphs". This paper has been cited 94 times since its publication in 2007 according to Google Scholar, increasing interest in the topic.
+The paper claims that the CMD requires less than 1/10 of the space of the more traditional Singular Value Decomposition (SVD) and is 10x more computationally efficient, while maintaning the same level of reconstruction accuracy. Here I seek to apply the CMD to the MNIST dataset. This is a prudent operation since the matrices of images, while not as large as the data used in the original paper (200+ GB of network traffic data), are large enough to  

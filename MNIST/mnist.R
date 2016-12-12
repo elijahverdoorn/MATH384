@@ -9,7 +9,7 @@ library(glmnet)
 library(doParallel)
 
 # enable parallel computation
-registerDoParallel(cores = 8)
+registerDoParallel(cores = 4)
 
 
 # Load the MNIST digit recognition dataset into R
