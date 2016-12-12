@@ -80,7 +80,7 @@ appr_multiplication <- function(matA, matB, sampleSize) {
     R_d <- matrix(nrow = sampleSize, ncol = ncol(matB))
     C_d <- matrix(nrow = nrow(matA), ncol = sampleSize)
     for (i in 1:sampleSize) {
-        j <- sample(1:sampleSize, size = 1, replace = TRUE, prob = q)
+        j <- sample(1:nrow(matB), size = 1, replace = TRUE, prob = q)
         R_d[i,] <- matB[j,] / sqrt(sampleSize * q[j])
         C_d[,i] <- matA[,j] / sqrt(sampleSize * q[j])
     }
@@ -89,16 +89,28 @@ appr_multiplication <- function(matA, matB, sampleSize) {
     R_s <- matrix(nrow = sampleSize, ncol = ncol(matB))
     C_s <- matrix(nrow = nrow(matA), ncol = sampleSize)
     for (i in 1:sampleSize) {
-        u <- # number of instances of this row in the full set of Rs
+        u <- 0 # number of instances of this row in the full set of Rs
         for (j in 1:nrow(R_d)) { # count the instances of this column in the initial subspace
-            if (identical(r_D[j,], uniqueRowsR[i,])) {
+            if (identical(R_d[j,], uniqueRowsR[i,])) {
                 u <- u + 1
             }
         }
         R_s[i,] <- u * uniqueRowsR[i,]
         C_s[,i] <- uniqueColsC[,i]
     }
-    return(list("c" = C_s, "R" = R_s)) 
+    return(list("C" = C_s, "R" = R_s)) 
+}
+
+# master function, derived from figure 6
+cmd_decomposition <- function(matA, c, r) {
+    cSubspace <- cmd_subspace_construction(matA, c)
+    cSubspace.svd <- svd(cSubspace)
+    cTranspose <- t(cSubspace)
+    apprMult <- appr_multiplication(cTranspose, matA, r)
+    c_s <- apprMult$C
+    r_s <- apprMult$R
+    u <- cSubspace.svd$v %*% qr.solve(diag(cSubspace.svd$d)) %*% qr.solve(diag(cSubspace.svd$d)) %*% t(cSubspace.svd$v) %*% c_s
+    return(list("C" = cSubspace, "U" = u, "R" = apprMult$R))
 }
 
 # generate random testing matrix
@@ -113,8 +125,8 @@ make_test_data <- function (row, col) {
 }
 
 c <- 6
-mat <- make_test_data(6,10)
+r <- 3
 testMatrix <- make_test_data(6, 6)
-subspace <- cmd_subspace_construction(testMatrix, 3)
-svdSubspace <- svd(subspace)
-svdSubspace
+
+matA <- testMatrix
+cmd_decomposition(testMatrix, c, r)
