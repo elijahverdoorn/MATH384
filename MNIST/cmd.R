@@ -103,12 +103,16 @@ appr_multiplication <- function(matA, matB, sampleSize) {
 
 # master function, derived from figure 6
 cmd_decomposition <- function(matA, c, r) {
+    print("Constructing Subspace")
     cSubspace <- cmd_subspace_construction(matA, c)
+    print("Calculating SVD")
     cSubspace.svd <- svd(cSubspace)
     cTranspose <- t(cSubspace)
+    print("ApprMult")
     apprMult <- appr_multiplication(cTranspose, matA, r)
     c_s <- apprMult$C
     r_s <- apprMult$R
+    print("Calculating U")
     u <- cSubspace.svd$v %*% qr.solve(diag(cSubspace.svd$d)) %*% qr.solve(diag(cSubspace.svd$d)) %*% t(cSubspace.svd$v) %*% c_s
     return(list("C" = cSubspace, "U" = u, "R" = apprMult$R))
 }
@@ -120,13 +124,13 @@ make_test_data <- function (row, col) {
         for (j in 1:nrow(testMatrix)) {
             testMatrix[j,i] <- sample(1:20, 1)
         }
+        print(paste("Col: ", i))
     }
     return(testMatrix)
 }
 
 c <- 6
 r <- 3
-testMatrix <- make_test_data(6, 6)
-
+testMatrix <- make_test_data(10000, 10000)
 matA <- testMatrix
 cmd_decomposition(testMatrix, c, r)
