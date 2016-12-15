@@ -50,7 +50,7 @@ cmd_subspace_construction <- function(mat, c) {
         }
         returner[,i] <- sqrt(numInstancesInInitSubspace) * t(uniqueCols[,i])
     }
-    return(initSubspace)
+    return(returner)
 }
 
 # perform the process defined in fig 5
@@ -131,6 +131,6 @@ make_test_data <- function (row, col) {
 
 c <- 6
 r <- 3
-testMatrix <- make_test_data(10000, 10000)
+testMatrix <- make_test_data(1000,1000)
 matA <- testMatrix
 cmd_decomposition(testMatrix, c, r)

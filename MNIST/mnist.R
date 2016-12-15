@@ -56,23 +56,6 @@ calc_theta <- function(mu11, mu20, mu02) {
   return(.5 * tan((2 * mu11) / ((mu20 - mu02)^-1)))
 }
 
-construct_rotation_matrix <- function(theta, size) {
-  rotation_mat <- matrix(nrow = 2, ncol = 2)
-#  for (i in 1:size) {
-#    for (j in 1:size) {
-#      rotation_mat[i,j] <- 0
-#    }
-#  }
-#  for(i in 1:size) {
-#    rotation_mat[i,i] <- 1
-#  }
-  rotation_mat[1,1] <- cos(theta)
-  rotation_mat[1,2] <- -sin(theta)
-  rotation_mat[2,1] <- sin(theta)
-  rotation_mat[2,2] <- cos(theta)
-  return(rotation_mat)
-}
-
 load_mnist()
 
 # Make data frames from the imported data described above
@@ -105,32 +88,7 @@ for (i in 1:nrow(avgVals)) {
     show_digit(avgVals[i,])
 }
 
-testImage <- as.vector((t(train.df[7,2:785])))
-testImage.matrix <- matrix(testImage, nrow = 28, ncol = 28)
-imageForRotation <- Image(data = testImage.matrix, dim = c(28,28))
-display(getFrame(imageForRotation, 1)/255, method = "raster", interpolate = FALSE)
-
-show_digit(testImage)
-
-# deskewing
-moments <- all.moments(testImage, order.max = 3, central = TRUE, absolute = FALSE, na.rm = TRUE)
-moments
-
-
-theta <- calc_theta(moments[2], moments[3], moments[4])
-fixedImage.image <- rotate(imageForRotation, angle = theta, output.dim = dim(imageForRotation)[1:2]) 
-display(getFrame(fixedImage.image, 1)/255, method = "raster", interpolate = FALSE)
-fixedImage.matrix <- as.data.frame(cbind(as.numeric(dimnames(fixedImage.image)[[3]]), do.call(rbind, lapply(getFrames(fixedImage.image), as.matrix))))
-show_digit(as.matrix(fixedImage.matrix))
-show_digit(testImage.matrix)
-
-# some kind of classification
-# I'm going to do lasso, since that'll drop out variables and there are a lot of variables that'll be all zero
-
-#######################################################
-## Build full,train, and test data matrices. This is the form
-## that glmnet uses.
-#######################################################
+# Build train and test data matrices. This is the form that glmnet uses.
 numLambda <- 10
 expVals <- seq(-4,4,length=numLambda)
 lambda.grid <- 10^expVals
