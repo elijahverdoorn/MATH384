@@ -8,6 +8,9 @@ library(EBImage) # for rotation
 library(glmnet)
 library(doParallel)
 
+# import CMD implementation
+source("cmd.R")
+
 # enable parallel computation
 registerDoParallel(cores = 4)
 
@@ -52,10 +55,6 @@ show_digit <- function(arr784, col=gray(12:1/12), ...) {
     image(matrix(arr784, nrow=28)[,28:1], col=col, ...)
 }
 
-calc_theta <- function(mu11, mu20, mu02) {
-  return(.5 * tan((2 * mu11) / ((mu20 - mu02)^-1)))
-}
-
 load_mnist()
 
 # Make data frames from the imported data described above
@@ -89,26 +88,28 @@ for (i in 1:nrow(avgVals)) {
 }
 
 # Build train and test data matrices. This is the form that glmnet uses.
+
+# we need to do some precomputation here so that our models actually finish training. This is where CMD comes in.
+
+
+
 numLambda <- 10
 expVals <- seq(-4,4,length=numLambda)
 lambda.grid <- 10^expVals
 plot(expVals,lambda.grid)
 
-## Train
+# Train
 x.train <- as.matrix(train.df[,2:785])
 y.train <- as.matrix(train.df[,786])
 
-##Test
+# Test
 x.test <- as.matrix(test.df[,2:785])
 y.test <- as.matrix(test.df[,786])
 
-#################################
-## We need to find the optimal lambda. To do so, we cross-validate the
-## mse across all the values of lambda. glmnet will do this
-## automatically
+# We need to find the optimal lambda. To do so, we cross-validate the
+# mse across all the values of lambda. glmnet will do this
+# automatically
 
-## Use grid of lambda values with cv.glmnet. The plot shows
-## cross-validated with error bars as a function of log(lambda) base=2.
 cv.ridge <- cv.glmnet(x = x.train, y = as.factor(y.train), lambda = lambda.grid, family = "multinomial", type.logistic = "modified.Newton", parallel = TRUE)
 plot(cv.ridge)
 

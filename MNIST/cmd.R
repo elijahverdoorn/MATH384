@@ -129,8 +129,10 @@ make_test_data <- function (row, col) {
     return(testMatrix)
 }
 
-c <- 6
-r <- 3
-testMatrix <- make_test_data(1000,1000)
-matA <- testMatrix
-cmd_decomposition(testMatrix, c, r)
+run_cmd_test <- function() {
+    c <- 6
+    r <- 3
+    testMatrix <- make_test_data(1000,1000)
+    matA <- testMatrix
+    cmd_decomposition(testMatrix, c, r)
+}
