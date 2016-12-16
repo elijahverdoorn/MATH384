@@ -16,10 +16,10 @@ While some models are adept at handling large sparse data like MNIST, decomposit
 # Compact Matrix Decomposition
 In an effort to improve computation speed, specifically around the training of new models, optimization techniques are applied. These techniques range in effectiveness and complexity, and are a very active area of mathematic research.
 One recently developed technique is the Compact Matrix Decomposition (CMD). The CMD was developed at Carnegie Mellon University, and first published in the paper "Less is More: Compact Matrix Decomposition for Large Sparse Graphs". This paper has been cited 94 times since its publication in 2007 according to Google Scholar, increasing interest in the topic.
-The paper claims that the CMD requires less than 1/10 of the space of the more traditional Singular Value Decomposition (SVD) and is 10x more computationally efficient, while maintaning the same level of reconstruction accuracy. Here I seek to apply the CMD to the MNIST dataset. This is a prudent operation since the matrices of images, while not as large as the data used in the original paper [@sun2007](200+ GB of network traffic data), are large enough to benefit from this precomputation.
+The paper claims that the CMD requires less than 1/10 of the space of the more traditional Singular Value Decomposition (SVD) and is 10x more computationally efficient, while maintaning the same level of reconstruction accuracy. Here I seek to apply the CMD to the MNIST dataset. This is a prudent operation since the matrices of images, while not as large as the data used in the original paper [@sun2007](200+ GB of network traffic data), are large enough to benefit from manipulating the data before we attempt to apply statistical models to it.
 
 ## Motivation
-Initial computation on the MNIST data backs up the use of CMD. Attempting to execute ridge regression in R on the dataset without any form of precomputation does not complete, the code simply crashes after an hour or so of executing on my computer. Using the singular value decomposition in this situtation is not effective, since the data is too sparse.
+Initial computation on the MNIST data backs up the use of CMD. In my initial testing, I tried various models to get a baseline. Attempting to execute one such model, ridge regression in R on the dataset without any form of precomputation, resulted in a system failure as my computer ground to a halt under the weight of the computation. Using the singular value decomposition in this situtation is not effective, since the data is too sparse and does not lend itself to singular values that provide useful information without other operations on them.
 
 ## Derivation
 The derivation of CMD stems from a basic central question: how can one approximate the matrix $A \in \mathbb{R}^{m\times n}$ as the product of smaller matrices $C \in \mathbb{R}^{m \times c}, U \in \mathbb{R}^{c \times r}$ and $R \in \mathbb{R}^{r \times n}$ such that we minimize $|A - CUR|^2$. This computation effectively seeks to reduce the rank of $A$ while maintaining enough similarity between the result and the original.
@@ -171,5 +171,43 @@ This summary function makes calls to the above functions, and performs the calcu
 
 # Application
 Having derived and programmed the CMD algorithm, we move to applying it to the MNIST dataset. We begin by manipulating the data into a structure that makes sense in this situation:
+```{r}
+# Load the MNIST digit recognition dataset into R
+# http://yann.lecun.com/exdb/mnist/
+# assume you have all 4 files and gunzip'd them
+# creates train$n, train$x, train$y  and test$n, test$x, test$y
+# e.g. train$x is a 60000 x 784 matrix, each row is one digit (28x28)
+# call:  show_digit(train$x[5,])   to see a digit.
+# brendan o'connor - gist.github.com/39760 - anyall.org, modified by Elijah Verdoorn (elijahverdoorm.com) 11/30/16
+load_mnist <- function() {
+    load_image_file <- function(filename) {
+        ret = list()
+        f = file(filename,'rb')
+        readBin(f,'integer',n=1,size=4,endian='big')
+        ret$n = readBin(f,'integer',n=1,size=4,endian='big')
+        nrow = readBin(f,'integer',n=1,size=4,endian='big')
+        ncol = readBin(f,'integer',n=1,size=4,endian='big')
+        x = readBin(f,'integer',n=ret$n*nrow*ncol,size=1,signed=F)
+        ret$x = matrix(x, ncol=nrow*ncol, byrow=T)
+        close(f)
+        ret
+    }
+    load_label_file <- function(filename) {
+        f = file(filename,'rb')
+        readBin(f,'integer',n=1,size=4,endian='big')
+        n = readBin(f,'integer',n=1,size=4,endian='big')
+        y = readBin(f,'integer',n=n,size=1,signed=F)
+        close(f)
+        y
+    }
+    # Modified to handle changed file names, ERV 11/30/16
+    train <<- load_image_file('train_set_images')
+    test <<- load_image_file('test_set_images')
+    
+    train$y <<- load_label_file('train_set_labels')
+    test$y <<- load_label_file('test_set_labels')  
+}
+```
+This function, used under the MIT license, imports the MNIST dataset into R [@import].
 
 # References

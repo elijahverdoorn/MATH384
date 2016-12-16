@@ -12,7 +12,7 @@ library(doParallel)
 source("cmd.R")
 
 # enable parallel computation
-registerDoParallel(cores = 4)
+registerDoParallel(cores = 8)
 
 # Load the MNIST digit recognition dataset into R
 # http://yann.lecun.com/exdb/mnist/
@@ -89,8 +89,8 @@ for (i in 1:nrow(avgVals)) {
 # Build train and test data matrices. This is the form that glmnet uses.
 
 # we need to do some precomputation here so that our models actually finish training. This is where CMD comes in.
-c <- 100
-r <- 10000
+c <- 78
+r <- 6000
 # drop the n column cause it's useless
 drops <- c("n")
 train.df <- train.df[, !(names(train.df) %in% drops)]
@@ -98,7 +98,8 @@ test.df <- test.df[, !(names(test.df) %in% drops)]
 # add an id column
 train.df$id <- seq.int(nrow(train.df))
 test.df$id <- seq.int(nrow(test.df))
-decompTrain <- cmd_decomposition(as.matrix(train.df), c, r)
+decompMatrix <- as.matrix(train.df[,1:784])
+decompTrain <- cmd_decomposition(decompMatrix, c, r)
 
 responses <- train.df[decompTrain$rows, "y"]
 trainDecomp.df <- data.frame(decompTrain$U)

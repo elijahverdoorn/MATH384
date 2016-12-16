@@ -8,6 +8,7 @@ initial_subspace_construction <- function(mat, c) {
     # sum the entrire matrix, we only do this once for efficiency
     for (i in 1:ncol(mat)) {
         columnSum <- 0
+        print(paste(i))
         for (j in 1:nrow(mat)) {
             element <- mat[j, i] ^ 2
             columnSum <- columnSum + element
@@ -41,6 +42,7 @@ cmd_subspace_construction <- function(mat, c) {
     initSubspace <- apply(initSubspace, c(1,2), round, digits = 5) # round the initSubspace so that unique() will work 
     uniqueCols <- t(unique(t(initSubspace)))
     numUniqueCols <- ncol(uniqueCols)
+    print(paste("Found ", numUniqueCols, " columns in the initial subspace when constructing the other subspace."))
     returner <- matrix(nrow = nrow(initSubspace), ncol = numUniqueCols)
     for (i in 1:numUniqueCols) {
         numInstancesInInitSubspace <- 0
@@ -63,6 +65,8 @@ appr_multiplication <- function(matA, matB, sampleSize) {
     q <- vector(length = nrow(matB)) # the row distribution (I think??? TODO: check this)
     # sum the entrire matB matrix, we only do this once for efficiency
     matrixSum <- 0
+    print("point 1")
+    # get the sum of the matrix so we only have to do it once
     for (i in 1:ncol(matB)) {
         columnSum <- 0
         for (j in 1:nrow(matB)) {
@@ -71,6 +75,7 @@ appr_multiplication <- function(matA, matB, sampleSize) {
         }
         matrixSum <- matrixSum + columnSum
     }
+    print("point 2")
     # row distribution of matB
     for (x in 1:nrow(matB)) {
         rowSum <- 0
@@ -79,6 +84,7 @@ appr_multiplication <- function(matA, matB, sampleSize) {
         }
         q[x] <- rowSum / matrixSum 
     }
+    print("point 3")
     R_d <- matrix(nrow = sampleSize, ncol = ncol(matB))
     C_d <- matrix(nrow = nrow(matA), ncol = sampleSize)
     rowsSampled <- vector(length = sampleSize)
@@ -88,6 +94,7 @@ appr_multiplication <- function(matA, matB, sampleSize) {
         R_d[i,] <- matB[j,] / sqrt(sampleSize * q[j])
         C_d[,i] <- matA[,j] / sqrt(sampleSize * q[j])
     }
+    print("point 4")
     uniqueColsC <- t(unique(t(C_d)))
     uniqueRowsR <- unique(R_d)
     R_s <- matrix(nrow = sampleSize, ncol = ncol(matB))
@@ -116,7 +123,7 @@ cmd_decomposition <- function(matA, c, r) {
     
     print("Calculating SVD")
     cSubspace.svd <- svd(t(initSubspace) %*% initSubspace)
-    cTranspose <- t(cSubspace)
+    cTranspose <- t(initSubspace)
     print("ApprMult")
     apprMult <- appr_multiplication(cTranspose, matA, r)
     c_s <- apprMult$C
