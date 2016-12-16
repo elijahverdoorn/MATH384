@@ -102,7 +102,7 @@ appr_multiplication <- function(matA, matB, sampleSize) {
         R_s[i,] <- u * uniqueRowsR[i,]
         C_s[,i] <- uniqueColsC[,i]
     }
-    return(list("C" = C_s, "R" = R_s, "rowsSampled" = rowsSampled)) 
+    return(list("C" = C_d, "R" = R_s, "rowsSampled" = rowsSampled)) 
 }
 
 # master function, derived from figure 6
@@ -146,7 +146,7 @@ calculate_error <- function(matA, matC, matU, matR) {
 }
 
 run_cmd_test <- function() {
-    c <- 100
+    c <- 50
     r <- 100
     testMatrix <- make_test_data(1000,1000)
     matA <- testMatrix
@@ -155,3 +155,16 @@ run_cmd_test <- function() {
 }
 
 decomp <- run_cmd_test()
+
+c <- decomp$C
+u <- decomp$U
+r <- decomp$R
+
+nrow(c)
+ncol(c)
+
+nrow(u)
+ncol(u)
+
+nrow(r)
+ncol(r)
