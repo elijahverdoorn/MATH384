@@ -88,47 +88,102 @@ for (i in 1:nrow(avgVals)) {
 
 # Build train and test data matrices. This is the form that glmnet uses.
 
+
+#######################
+## The Training Data ##
+#######################
 # we need to do some precomputation here so that our models actually finish training. This is where CMD comes in.
 c <- 78
 r <- 6000
 # drop the n column cause it's useless
 drops <- c("n")
 train.df <- train.df[, !(names(train.df) %in% drops)]
-test.df <- test.df[, !(names(test.df) %in% drops)]
 # add an id column
 train.df$id <- seq.int(nrow(train.df))
-test.df$id <- seq.int(nrow(test.df))
 decompMatrix <- as.matrix(train.df[,1:784])
 decompTrain <- cmd_decomposition(decompMatrix, c, r)
 
 responses <- train.df[decompTrain$rows, "y"]
-trainDecomp.df <- data.frame(decompTrain$U)
-trainDecomp.df$y <- responses
+cDecomp.df <- data.frame(decompTrain$C)
+uDecomp.df <- data.frame(decompTrain$U)
+rDecomp.df <- data.frame(decompTrain$R)
+
+rTilde <- sample(1:nrow(decompMatrix), r, replace = FALSE)
+cTilde <- sample(1:ncol(decompMatrix), c, replace = FALSE)
+cDecompSubset <- decompTrain$C[rTilde, ]
+uDecomp <- decompTrain$U
+rDecompSubset <- decompTrain$R[, cTilde]
+rDecompSubset[is.na(rDecompSubset)] <- 0
+trainDecomp.df <- data.frame(cDecompSubset %*% uDecomp %*% rDecompSubset)
+trainDecomp.df$y <- responses[rTilde]
+# in theory we can build models on trainDecomp.df with y as the response variable
+
+# this is most likely the wrong solution, but let's try anyway
+testingData.df <- data.frame(t(decompTrain$U))
+testingData.df$y <- train.df[decompTrain$rows, "y"] # can I build a model on this?
+
+x.train <- as.matrix(testingData.df[, ! colnames(trainDecomp.df) %in% c("y")])
+y.train <- as.matrix(testingData.df[,"y"])
+
+######################
+## The Testing Data ##
+######################
+# we need to do some precomputation here so that our models actually finish training. This is where CMD comes in.
+c <- 78
+r <- 6000
+# drop the n column cause it's useless
+drops <- c("n")
+test.df <- test.df[, !(names(test.df) %in% drops)]
+# add an id column
+test.df$id <- seq.int(nrow(test.df))
+decompMatrix <- as.matrix(test.df[,1:784])
+decompTest <- cmd_decomposition(decompMatrix, c, r)
+
+responses <- test.df[decompTest$rows, "y"]
+cDecomp.df <- data.frame(decompTest$C)
+uDecomp.df <- data.frame(decompTest$U)
+rDecomp.df <- data.frame(decompTest$R)
+
+rTilde <- sample(1:nrow(decompMatrix), r, replace = FALSE)
+cTilde <- sample(1:ncol(decompMatrix), c, replace = FALSE)
+cDecompSubset <- decompTest$C[rTilde, ]
+uDecomp <- decompTest$U
+rDecompSubset <- decompTest$R[, cTilde]
+rDecompSubset[is.na(rDecompSubset)] <- 0
+testDecomp.df <- data.frame(cDecompSubset %*% uDecomp %*% rDecompSubset)
+testDecomp.df$y <- responses[rTilde]
+# in theory we can build models on trainDecomp.df with y as the response variable
+
+# this is most likely the wrong solution, but let's try anyway
+testingData.df <- data.frame(t(decompTest$U))
+testingData.df$y <- train.df[decompTest$rows, "y"] # can I build a model on this?
+
+# Test
+x.test <- as.matrix(testingData.df[, ! colnames(testingData.df) %in% c("y")])
+y.test <- as.matrix(testingData.df[,"y"])
+
+# We need to find the optimal lambda. To do so, we cross-validate the
+# mse across all the values of lambda. glmnet will do this
+# automatically
 
 numLambda <- 10
 expVals <- seq(-4,4,length=numLambda)
 lambda.grid <- 10^expVals
 plot(expVals,lambda.grid)
 
-# Train
-x.train <- as.matrix(train.df[,2:785])
-y.train <- as.matrix(train.df[,786])
-
-# Test
-x.test <- as.matrix(test.df[,2:785])
-y.test <- as.matrix(test.df[,786])
-
-# We need to find the optimal lambda. To do so, we cross-validate the
-# mse across all the values of lambda. glmnet will do this
-# automatically
-
 cv.ridge <- cv.glmnet(x = x.train, y = as.factor(y.train), lambda = lambda.grid, family = "multinomial", type.logistic = "modified.Newton", parallel = TRUE)
 plot(cv.ridge)
 
-## Ridge prediction for optimal lambda
-phat <- predict(mod.ridge, newx = x.test, s = cv.ridge$lambda.1se, type = "response")
-yhat <- apply(phat, 1, which.max) - 1
-ot <- table(yhat, y.test)
-print(ot)
-sum(diag(ot)) / 100
+bestLambda <- cv.ridge$lambda.min
+mod.bestLambda <- glmnet(x.train, y.train, alpha = 0, lambda = bestLambda, intercept = TRUE)
+
+# Ridge prediction for optimal lambda
+phat <- predict(cv.ridge, newx = x.test, type = "class")
 plot(cv.ridge$glmnet.fit, xvar = "lambda")
+
+correct <- 0
+for(i in 1:nrow(phat)) {
+    if (phat[i] == y.test[i]) {
+        correct <- correct + 1
+    }
+}

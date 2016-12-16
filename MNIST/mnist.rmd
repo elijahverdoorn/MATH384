@@ -171,6 +171,8 @@ This summary function makes calls to the above functions, and performs the calcu
 
 # Application
 Having derived and programmed the CMD algorithm, we move to applying it to the MNIST dataset. We begin by manipulating the data into a structure that makes sense in this situation:
+
+## Setup
 ```{r}
 # Load the MNIST digit recognition dataset into R
 # http://yann.lecun.com/exdb/mnist/
@@ -178,7 +180,8 @@ Having derived and programmed the CMD algorithm, we move to applying it to the M
 # creates train$n, train$x, train$y  and test$n, test$x, test$y
 # e.g. train$x is a 60000 x 784 matrix, each row is one digit (28x28)
 # call:  show_digit(train$x[5,])   to see a digit.
-# brendan o'connor - gist.github.com/39760 - anyall.org, modified by Elijah Verdoorn (elijahverdoorm.com) 11/30/16
+# brendan o'connor - gist.github.com/39760 - anyall.org
+# modified by Elijah Verdoorn (elijahverdoorm.com) 11/30/16
 load_mnist <- function() {
     load_image_file <- function(filename) {
         ret = list()
@@ -209,5 +212,152 @@ load_mnist <- function() {
 }
 ```
 This function, used under the MIT license, imports the MNIST dataset into R [@import].
+```{r}
+show_digit <- function(arr784, col=gray(12:1/12), ...) {
+    image(matrix(arr784, nrow=28)[,28:1], col=col, ...)
+}
+```
+This function can render the image matrices to the screen, allowing us to verify our calculations.
+```{r}
+load_mnist()
+
+# Make data frames from the imported data described above
+train.df <- data.frame(train)
+test.df <- data.frame(test)
+
+# use the data frame to access the data and display images
+show_digit(train$x[7,])
+```
+This series of calls loads the data, then reformatted it into a data frame, making it easier to work with. After that, we call the `show_digit()` function to display an image as a test.
+```{r}
+# average the images to get an idea of the distribution
+uniqueCols <- unique(train.df$y) # get the unique digits in the response col (y)
+# the matrix that will hold the averages
+avgVals <- matrix(nrow = length(uniqueCols), ncol = 784)
+for (i in 1:length(uniqueCols)) { # for each unique digit
+    # get values for the current digit, dropping the n and response columns
+    currentVals.df <- train.df[train.df$y == uniqueCols[i],]
+    drops <- c("n", "y")
+    currentVals.df <- currentVals.df[ , !(names(currentVals.df) %in% drops)]
+    for(j in 1:784) { # for each pixel (the images are 28x28, 28^2 = 784)
+        avgVals[i,j] <- mean(currentVals.df[,j])
+    } 
+}
+```
+Given the matrices of images, to get a sense of how the digits are distributed, average all the instances of each digit.
+```{r, fig.width=4, fig.height=4,fig.align='center'}
+# display the image averages
+for (i in 1:nrow(avgVals)) {
+    show_digit(avgVals[i,])
+}
+```
+Display each average.
+
+## CMD
+```{r}
+# we need to do some precomputation here so that our models actually finish training. This is where CMD comes in.
+c <- 78
+r <- 6000
+# drop the n column cause it's useless
+drops <- c("n")
+train.df <- train.df[, !(names(train.df) %in% drops)]
+# add an id column
+train.df$id <- seq.int(nrow(train.df))
+decompMatrix <- as.matrix(train.df[,1:784])
+decompTrain <- cmd_decomposition(decompMatrix, c, r)
+```
+This code applies the `cmd_decomposition()` function that we wrote earlier to the training dataset, which we will use to build our models.
+
+```{r}
+responses <- train.df[decompTrain$rows, "y"]
+cDecomp.df <- data.frame(decompTrain$C)
+uDecomp.df <- data.frame(decompTrain$U)
+rDecomp.df <- data.frame(decompTrain$R)
+
+rTilde <- sample(1:nrow(decompMatrix), r, replace = FALSE)
+cTilde <- sample(1:ncol(decompMatrix), c, replace = FALSE)
+cDecompSubset <- decompTrain$C[rTilde, ]
+uDecomp <- decompTrain$U
+rDecompSubset <- decompTrain$R[, cTilde]
+rDecompSubset[is.na(rDecompSubset)] <- 0
+trainDecomp.df <- data.frame(cDecompSubset %*% uDecomp %*% rDecompSubset)
+trainDecomp.df$y <- responses[rTilde]
+# in theory we can build models on trainDecomp.df with y as the response variable
+
+# this is most likely the wrong solution, but let's try anyway
+testingData.df <- data.frame(t(decompTrain$U))
+testingData.df$y <- train.df[decompTrain$rows, "y"] # can I build a model on this?
+
+x.train <- as.matrix(testingData.df[, ! colnames(trainDecomp.df) %in% c("y")])
+y.train <- as.matrix(testingData.df[,"y"])
+```
+Here we work with the results of the CMD, putting the data into a format that makes sense for the models that we want to build.
+
+```{r}
+c <- 78
+r <- 6000
+# drop the n column cause it's useless
+drops <- c("n")
+test.df <- test.df[, !(names(test.df) %in% drops)]
+# add an id column
+test.df$id <- seq.int(nrow(test.df))
+decompMatrix <- as.matrix(test.df[,1:784])
+decompTest <- cmd_decomposition(decompMatrix, c, r)
+
+responses <- test.df[decompTest$rows, "y"]
+cDecomp.df <- data.frame(decompTest$C)
+uDecomp.df <- data.frame(decompTest$U)
+rDecomp.df <- data.frame(decompTest$R)
+
+rTilde <- sample(1:nrow(decompMatrix), r, replace = FALSE)
+cTilde <- sample(1:ncol(decompMatrix), c, replace = FALSE)
+cDecompSubset <- decompTest$C[rTilde, ]
+uDecomp <- decompTest$U
+rDecompSubset <- decompTest$R[, cTilde]
+rDecompSubset[is.na(rDecompSubset)] <- 0
+testDecomp.df <- data.frame(cDecompSubset %*% uDecomp %*% rDecompSubset)
+testDecomp.df$y <- responses[rTilde]
+# in theory we can build models on trainDecomp.df with y as the response variable
+
+# this is most likely the wrong solution, but let's try anyway
+testingData.df <- data.frame(t(decompTest$U))
+testingData.df$y <- train.df[decompTest$rows, "y"] # can I build a model on this?
+
+# Test
+x.test <- as.matrix(testingData.df[, ! colnames(testingData.df) %in% c("y")])
+y.test <- as.matrix(testingData.df[,"y"])
+```
+This code is very similar to the above work that we did on the training data, but now we do it for the testing data.
+
+```{r}
+numLambda <- 10
+expVals <- seq(-4,4,length=numLambda)
+lambda.grid <- 10^expVals
+plot(expVals,lambda.grid)
+```
+The cross-validation that we're going to do requires a "grid" of $\lambda$ values that will be used as ridges in the algorithm to determine which variables contribute most to the prediction.
+```{r}
+cv.ridge <- cv.glmnet(x = x.train, y = as.factor(y.train), lambda = lambda.grid, family = "multinomial", type.logistic = "modified.Newton", parallel = TRUE)
+plot(cv.ridge)
+
+bestLambda <- cv.ridge$lambda.min
+mod.bestLambda <- glmnet(x.train, y.train, alpha = 0, lambda = bestLambda, intercept = TRUE)
+
+# Ridge prediction for optimal lambda
+phat <- predict(cv.ridge, newx = x.test, type = "class")
+plot(cv.ridge$glmnet.fit, xvar = "lambda")
+```
+Train the model using the grid of lambdas for cross-validation, then run predictions on the best of those models.
+
+```{r}
+correct <- 0
+for(i in 1:nrow(phat)) {
+    if (phat[i] == y.test[i]) {
+        correct <- correct + 1
+    }
+}
+correct
+```
+Here we find out how well we did by counting the number of predictions that we got correct.
 
 # References
