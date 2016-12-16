@@ -36,12 +36,14 @@ The next steps in the process involve projecting the original matrix $X$ onto th
 The process of reducing this overhead is defined in the ApprMultiplication process, which takes two matrices $A$ and $B$, assuming that $AB$ is defined, and then sampling the columns of $A$ and the rows of $B$. We scale the rows and columns for multiplication, but still have the issue of duplicates. The CMD process removes duplicate rows by sampling and scaling rows from $A$ and extracting the corresponding columns from $C^T$.
 
 After removing the duplicate rows, we need to verify that our matrix multiplication is still correct. To do this we let $I$ and $J$ be the set of sampled rows, $I$ with duplicates and $J$ without duplicates. We define $J = [1,\dots,1,\dots, r', \dots, r']$ where there are $d'_i$ instances of each element up to $d'_{r'}$. Additionally, we define $I = [1,\dots, r']$. Letting $A$ and $B$ be matrices with dimensions $m_a \times n_a$ and $m_b \times n_b$ respectively. Allowing $i \leq \min(n_a,m_b)$ we have
-$$A(:,J)B(J,:) = A(:,I)\Lambda'B(I,:)$$ where $\Lambda'$ is a diagonal matrix with $\d'_1, \dots, d'_r$. We can prove that the matrix multiplication is correct by stating that $$A(:,J)B(J,:) = \Sigma_{k\in J}A(i,k)B(k,j) = \Sigma_{k\in J}d_{i_k}A(i,k)B(k,j) = A(:,I)\Lambda'B(I,:)$$. This verifies the multiplication.
+$$A(:,J)B(J,:) = A(:,I)\Lambda'B(I,:)$$ where $\Lambda'$ is a diagonal matrix with $\d'_1, \dots, d'_r$. We can prove that the matrix multiplication is correct by stating that $$A(:,J)B(J,:) = \Sigma_{k\in J}A(i,k)B(k,j) = \Sigma_{k\in J}d_{i_k}A(i,k)B(k,j) = A(:,I)\Lambda'B(I,:).$$ This verifies the multiplication.
 
-Having proved that the multiplication is correct, we can now simply calculate the final portion of the decomposition, $U$, to complete the process. In this case $$U = V_C\Sigma_C^{-2}V_C^TC_s$$.
+Having proved that the multiplication is correct, we can now simply calculate the final portion of the decomposition, $U$, to complete the process. In this case $$U = V_C\Sigma_C^{-2}V_C^TC_s.$$
+
+From here, we have calculated all the parts of the CMD that we need. We got $C$ from the construction of the CMD subspace, calculated $U$ by combining the results of the ApprMultiplication process with $\Sigma_C$ and $V_C$ from the SVD, and included the $R$ from ApprMultiplication to complete the decomposition.
 
 ## Programming
-To apply this to the MNIST dataset, we program a CMD implementation in R.
+To apply the CMD to the MNIST dataset, we program a CMD implementation in R.
 ```{r, warning=FALSE, message=FALSE, results='hide'}
 library(dplyr)
 ```
