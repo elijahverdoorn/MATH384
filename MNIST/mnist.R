@@ -4,9 +4,10 @@ library(tree)
 library(randomForest)
 library(e1071)
 library(moments)
-library(EBImage) # for rotation
 library(glmnet)
 library(doParallel)
+library(MASS)
+library(ROCR)
 
 # import CMD implementation
 source("cmd.R")
@@ -187,3 +188,20 @@ for(i in 1:nrow(phat)) {
         correct <- correct + 1
     }
 }
+correct
+
+# That wasn't so good. Let's try another model
+K <- 10
+N <- nrow(df)
+folds <- sample(1:K, N, rep = T)
+errs <- rep(0, K)
+for(k in 1:K){
+    train <- !folds == k
+    test <-  folds == k
+    svmfit <- svm(class ~ x + y, data = df[train,], kernel = "linear", cost = C, scale = T)
+    pred.svm <- predict(svmfit, newdata = df[test,])
+    pred.svm
+    errs[k] <- with(dat.df[test,], mean(class != pred.svm))
+}
+mean(errs)
+

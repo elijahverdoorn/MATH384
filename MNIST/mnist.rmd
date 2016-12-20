@@ -6,6 +6,10 @@ output: pdf_document
 bibliography: references.bib
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
 # Introduction
 The MNIST dataset is a popular dataset for research in machine learning. Datasets like MNIST are used to check the validity of techniques and models before applying them to real-world prediction situations. The dataset consists of 70,000 images, each a digitization of a handwritten digit [@mnist]. The standard for working with this data is to use 60,000 of the image for training, reserving the other 10,000 for testing and validating the predictive models.
 Each image in MNIST is 28 pixels by 28 pixels, yielding 784 distinct values. These values range from 0 to 255 in base 10, each representing the amount of black in that pixel. Since the images are grayscale, we can represent them with only one matrix rather than more complicated color images, which can either be represented with three distinct matrices (one for each of the color channels) or by a single matrix with all values in base 16. This reduces the amount of computation needed to work with the dataset, with the discarded color information being classified as out of scope for the project. 
@@ -46,6 +50,13 @@ From here, we have calculated all the parts of the CMD that we need. We got $C$ 
 To apply the CMD to the MNIST dataset, we program a CMD implementation in R.
 ```{r, warning=FALSE, message=FALSE, results='hide'}
 library(dplyr)
+library(tidyr)
+library(tree)
+library(randomForest)
+library(e1071)
+library(moments)
+library(glmnet)
+library(doParallel)
 ```
 First we import libraries.
 ```{r}
@@ -70,8 +81,7 @@ initial_subspace_construction <- function(mat, c) {
         }
         columnDistribution[i] <- columnSum / matrixSum
     }
-    # the matrix that we'll return, of dimension m x c
-    returner <- matrix(nrow = nrow(mat), ncol = c) 
+    returner <- matrix(nrow = nrow(mat), ncol = c) # the matrix that we'll return, of dimension m x c
     # perform biased sampling
     for (i in 1:c) {
         j <- sample(1:ncol(mat), size = 1, replace = TRUE, prob = columnDistribution)
@@ -84,30 +94,29 @@ This function performs the initial subspace construction provided the initial ma
 ```{r}
 cmd_subspace_construction <- function(mat, c) {
     initSubspace <- initial_subspace_construction(mat, c)
-    # round the initSubspace so that unique() will work 
-    initSubspace <- apply(initSubspace, c(1,2), round, digits = 5)
+    initSubspace <- apply(initSubspace, c(1,2), round, digits = 5) # round the initSubspace so that unique() will work 
     uniqueCols <- t(unique(t(initSubspace)))
     numUniqueCols <- ncol(uniqueCols)
     returner <- matrix(nrow = nrow(initSubspace), ncol = numUniqueCols)
     for (i in 1:numUniqueCols) {
         numInstancesInInitSubspace <- 0
-        for (j in 1:ncol(initSubspace)) { 
-            # count the instances of this column in the initial subspace
+        for (j in 1:ncol(initSubspace)) { # count the instances of this column in the initial subspace
             if (identical(initSubspace[,j], uniqueCols[,i])) {
               numInstancesInInitSubspace <- numInstancesInInitSubspace + 1
             }
         }
         returner[,i] <- sqrt(numInstancesInInitSubspace) * t(uniqueCols[,i])
     }
-    return(returner)
+    return(list("cmdSubspace" = returner, "initSubspace" = initSubspace))
 }
 ```
 This function uses `initial_subspace_construction()` to construct the scaled version that we use, with the unique columns.
 ```{r}
 appr_multiplication <- function(matA, matB, sampleSize) {
-    q <- vector(length = nrow(matB)) # the row distribution
+    q <- vector(length = nrow(matB)) # the row distribution (I think??? TODO: check this)
     # sum the entrire matB matrix, we only do this once for efficiency
     matrixSum <- 0
+    # get the sum of the matrix so we only have to do it once
     for (i in 1:ncol(matB)) {
         columnSum <- 0
         for (j in 1:nrow(matB)) {
@@ -126,8 +135,10 @@ appr_multiplication <- function(matA, matB, sampleSize) {
     }
     R_d <- matrix(nrow = sampleSize, ncol = ncol(matB))
     C_d <- matrix(nrow = nrow(matA), ncol = sampleSize)
+    rowsSampled <- vector(length = sampleSize)
     for (i in 1:sampleSize) {
         j <- sample(1:nrow(matB), size = 1, replace = TRUE, prob = q)
+        rowsSampled[i] <- j
         R_d[i,] <- matB[j,] / sqrt(sampleSize * q[j])
         C_d[,i] <- matA[,j] / sqrt(sampleSize * q[j])
     }
@@ -135,10 +146,9 @@ appr_multiplication <- function(matA, matB, sampleSize) {
     uniqueRowsR <- unique(R_d)
     R_s <- matrix(nrow = sampleSize, ncol = ncol(matB))
     C_s <- matrix(nrow = nrow(matA), ncol = sampleSize)
-    for (i in 1:sampleSize) {
+    for (i in 1:nrow(uniqueRowsR)) {
         u <- 0 # number of instances of this row in the full set of Rs
-        for (j in 1:nrow(R_d)) { 
-            # count the instances of this column in the initial subspace
+        for (j in 1:nrow(R_d)) { # count the instances of this column in the initial subspace
             if (identical(R_d[j,], uniqueRowsR[i,])) {
                 u <- u + 1
             }
@@ -146,25 +156,25 @@ appr_multiplication <- function(matA, matB, sampleSize) {
         R_s[i,] <- u * uniqueRowsR[i,]
         C_s[,i] <- uniqueColsC[,i]
     }
-    return(list("C" = C_s, "R" = R_s)) 
+    return(list("C" = C_d, "R" = R_s, "rowsSampled" = rowsSampled)) 
 }
 ```
 This rather long function performs the ApprMultiplication process that we described above, creating two of the components that we need to use the decomposition in practice.
 ```{r}
 cmd_decomposition <- function(matA, c, r) {
-    print("Constructing Subspace")
     cSubspace <- cmd_subspace_construction(matA, c)
-    print("Calculating SVD")
-    cSubspace.svd <- svd(cSubspace)
-    cTranspose <- t(cSubspace)
-    print("ApprMult")
+    
+    # extract the init subspace for later use
+    initSubspace <- cSubspace$initSubspace
+    cSubspace <- cSubspace$cmdSubspace
+    
+    cSubspace.svd <- svd(t(initSubspace) %*% initSubspace)
+    cTranspose <- t(initSubspace)
     apprMult <- appr_multiplication(cTranspose, matA, r)
     c_s <- apprMult$C
     r_s <- apprMult$R
-    print("Calculating U")
-    u <- cSubspace.svd$v %*% qr.solve(diag(cSubspace.svd$d)) %*% 
-        qr.solve(diag(cSubspace.svd$d)) %*% t(cSubspace.svd$v) %*% c_s
-    return(list("C" = cSubspace, "U" = u, "R" = apprMult$R))
+    u <- cSubspace.svd$v %*% qr.solve(diag(cSubspace.svd$d) %*% diag(cSubspace.svd$d)) %*% t(cSubspace.svd$v) %*% c_s
+    return(list("C" = initSubspace, "U" = u, "R" = apprMult$R, "rows" = apprMult$rowsSampled))
 }
 ```
 This summary function makes calls to the above functions, and performs the calculation of $U$ to complete the decomposition.
@@ -345,7 +355,7 @@ mod.bestLambda <- glmnet(x.train, y.train, alpha = 0, lambda = bestLambda, inter
 
 # Ridge prediction for optimal lambda
 phat <- predict(cv.ridge, newx = x.test, type = "class")
-plot(cv.ridge$glmnet.fit, xvar = "lambda")
+plot(mod.bestLambda)
 ```
 Train the model using the grid of lambdas for cross-validation, then run predictions on the best of those models.
 
@@ -359,5 +369,5 @@ for(i in 1:nrow(phat)) {
 correct
 ```
 Here we find out how well we did by counting the number of predictions that we got correct.
-
+It appears that our accuracy resembles the accuracy that we would expect  
 # References
